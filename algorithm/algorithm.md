@@ -141,3 +141,8 @@ for(int i = 1; i <= n; i++){
 
 线段树：建立一个状态，然后用pushup返回分治的结果
 
+## wrap shuffle
+一个wrap里面的一个线程可以读取其他线程的寄存器的变量值
+__shfl_down_sync(0xffffffff, sum, 16)
+mask是那些线程有效，如果都是1就是都有效，sum就是读取my_lane_id + 16的sum变量
+取消了共享内存的使用，减少显式的asnyc
