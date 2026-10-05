@@ -46,3 +46,46 @@ grid是一次内核启动所有的线程块的集合
 2. 当一条指令需要的数据没有准备好，会stall(停顿)
 Memory read by itself doesn't stall execution 在读内存的时候gpu会调度其他的线程，所以 GPU 用大量线程隐藏内存延迟。这就是Latency hiding（延迟隐藏）
 3. Latency is hidden by switching threads 读取global memory需要>100cycle,计算<100cycles
+
+## two key points 
+make sure to use enough threads to hide latency 512-2048 
+一般的sm有64个wrap 每一个拥有32个线程 2048个线程
+线程块是wrap的整数倍
+
+## shared memory
+共享内存的组织形式是以块为单位的，每一个进程块的共享内存是隔离的
+每一个进程的顺序都是不固定的，为了防止数据竞争，在一些步骤需要同步，比如加载数据
+共享内存的存储形式，是按照bank存储的，一共有32个bank，按照地址%32存放
+
+读取共享内存的时候按照wrap读取，每次读取32个，如果x = sdata[threadIdx.x];
+thread0 读 sdata[0]
+thread1 读 sdata[1]
+thread2 读 sdata[2]
+...
+thread31 读 sdata[31]
+就是不冲突
+但是如果x = sdata[threadIdx.x * 32];
+
+现在：
+thread0 -> sdata[0]
+thread1 -> sdata[32]
+thread2 -> sdata[64]
+thread3 -> sdata[96]
+所有的线程都访问bank0，就会冲突，会分多次取数，并行变成串行
+
+一个 warp 的 32 个线程，它们的 index 会不会落到同一个 bank？ 来判断是否冲突
+
+## global memory thoughput
+
+
+## reduction
+atomic add
+read modify write 一次性
+
+## classical parallel reduction
+
+
+## gpu并行的矩阵写法
+可以把线称号当作一个循环
+ size_t idx = threadIdx.x+blockDim.x*blockIdx.x;这一句话里面会有blockdim * griddim个线程会执行，因此一个stride就是blockdim * griddim 
+一定要记住共享内存就是每一个块中都有一个，总量由硬件决定，怎么切给每个 block 由程序员的 kernel 写法决定，最终能同时放多少 block 由 GPU 调度。
