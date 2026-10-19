@@ -295,3 +295,13 @@ group by c1.c_mktsegment;
 
 使用 LEFT JOIN 查询从未下过订单的客户，
 显示客户编号（c_custkey）和客户名称（c_name），按客户编号升序排列。
+
+# 第四组：综合查询
+
+## 1. 1996 年 7 月的销售冠军
+
+查询 1996 年 7 月的销售冠军，即该月销售额最高的供应商。
+以 lineitem 表的发货日期（l_shipdate）确定月份，
+销售额为扩展价格（l_extendedprice）乘以（1 减折扣 l_discount）的合计。
+结果显示销售冠军 ID（l_suppkey），以及该供应商在 1996 年 7 月的销售额
+（命名为 sales_amount）；如有并列冠军，全部显示。
