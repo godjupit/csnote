@@ -261,3 +261,37 @@ where exists (
 在 customer 表中，哪些市场区域的客户数量超过所有市场区域的平均客户数量，
 结果显示市场区域（c_mktsegment）、客户数量（命名为 customer_count），
 并按客户数量降序排列。
+select c1.c_mktsegment
+from customer c1
+group by c1.c_mktsegment
+having count(*) > 
+(
+    select count(*) * 1.0 / count(distinct c2.c_mktsegment)
+    from customer c2
+);
+
+select c1.c_mktsegment
+from customer c1
+having count(*) > 10
+group by c1.c_mktsegment;
+
+
+
+# 第三组：左连接（3 道）
+
+## 1. 显示所有客户及其订单
+
+查询 customer 和 orders，显示客户编号（c_custkey）、客户名称（c_name）
+和订单编号（o_orderkey），要求保留所有客户，没有订单的客户也要显示，
+按客户编号升序排列。
+
+## 2. 统计每个客户的订单数量
+
+查询每个客户的订单数量，显示客户编号（c_custkey）、客户名称（c_name）
+和订单数量（命名为 order_count），没有订单的客户显示为 0，
+按订单数量降序、客户编号升序排列。
+
+## 3. 查询没有下过订单的客户
+
+使用 LEFT JOIN 查询从未下过订单的客户，
+显示客户编号（c_custkey）和客户名称（c_name），按客户编号升序排列。
