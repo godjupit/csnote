@@ -44,7 +44,7 @@ git clone https://github.com/godjupit/godjupit.github.io.git /Users/wangqibo/cs3
 | --- | --- |
 | `infra/cuda.md` | `notes/cuda-memory.html` |
 | `infra/mpi.md` | 尚未发布（文件为空） |
-| `database/sql_practice.md` | `notes/sql-practice.html` |
+| `database/sql_practice.txt` | `notes/sql-practice.html` |
 
 新增文章后，在这里补一行映射。
 

@@ -1,0 +1,141 @@
+SQL 基础练习（第一组）
+
+使用 PostgreSQL 的 TPC-H 数据库，范围参考 sql_example.md。
+字段名写在中文含义旁；统计数量、平均值等需要通过查询计算。
+注意：品牌值形如 Brand#43，LIKE 区分大小写。
+
+一、模糊查询与排序
+
+表：part
+查询条件：
+  品牌 p_brand 以 Brand#3 开头。
+  类型 p_type 包含 BRASS。
+显示字段：
+  商品编号 p_partkey、名称 p_name、品牌 p_brand、
+  类型 p_type、尺寸 p_size。
+排序要求：
+  尺寸 p_size 降序，商品编号 p_partkey 升序。
+
+我的作答：
+select p_partkey, p_name, p_brand, p_type, p_size
+from part 
+order by p_size, p_partkey Desc;
+
+二、分组统计与分组筛选
+
+表：customer
+分组依据：市场区域 c_mktsegment。
+显示内容：
+  市场区域 c_mktsegment。
+  客户数量：统计客户编号 c_custkey。
+  平均账户余额：对 c_acctbal 求平均值。
+筛选要求：只保留客户数量超过 290 的区域。
+排序要求：平均账户余额降序。
+
+我的作答：
+select c_mktsegment, count(*), avg(c_acctbal)
+from customer 
+group by c_mktsegment
+having count(*) >= 290
+order by avg(c_acctbal) desc;
+
+三、日期筛选与前 N 条记录
+
+表：orders
+查询条件：
+  下单日期 o_orderdate 在 1995 年内。
+  优先级 o_orderpriority 包含 URGENT。
+显示字段：
+  订单编号 o_orderkey、日期 o_orderdate、
+  优先级 o_orderpriority、总金额 o_totalprice。
+排序要求：总金额 o_totalprice 降序。
+结果条数：只显示前 10 条。
+
+四、集合条件与算术表达式
+
+表：lineitem
+查询条件：
+  发货模式 l_shipmode 为 AIR 或 TRUCK。
+  数量 l_quantity 大于 30。
+显示内容：
+  订单编号 l_orderkey、商品编号 l_partkey、数量 l_quantity。
+  实际金额：扩展价格乘以（1 减折扣）。
+计算表达式：
+  l_extendedprice * (1 - l_discount)
+  其中 l_extendedprice 为扩展价格，l_discount 为折扣。
+命名要求：实际金额命名为 actual_amount。
+
+五、按季度统计
+
+表：lineitem
+查询条件：发货日期 l_shipdate 在 1995—1996 年内。
+分组依据：发货日期 l_shipdate 的年份、季度。
+显示内容：
+  年份、季度（均从 l_shipdate 提取）。
+  明细数量（统计明细行数）。
+筛选要求：只保留明细数量超过 1000 的组。
+排序要求：年份升序、季度升序。
+提示：可以使用 EXTRACT 提取年份和季度。
+
+六、三表连接
+
+表：region、nation、supplier
+查询目标：统计每个地区的供应商数量。
+连接字段：
+  region.r_regionkey 与 nation.n_regionkey 对应。
+  nation.n_nationkey 与 supplier.s_nationkey 对应。
+显示内容：
+  地区名称 r_name。
+  供应商数量：统计供应商编号 s_suppkey。
+排序要求：供应商数量降序。
+
+七、连接、聚合与 HAVING
+
+表：nation、customer
+查询目标：统计每个国家的客户数量和平均账户余额。
+连接字段：
+  nation.n_nationkey 与 customer.c_nationkey 对应。
+显示内容：
+  国家名称 n_name。
+  客户数量：统计客户编号 c_custkey。
+  平均账户余额：对 c_acctbal 求平均值。
+筛选要求：只保留平均账户余额大于 4000 的国家。
+
+八、存在与不存在的子查询
+
+表：customer、orders
+分别编写两条 SQL：
+  1. 查询至少下过一笔订单的客户，每个客户只出现一次。
+  2. 查询从未下过订单的客户。
+显示字段：客户编号 c_custkey、名称 c_name。
+关联字段：
+  customer.c_custkey 与 orders.o_custkey 对应。
+提示：尝试分别使用 EXISTS 和 NOT EXISTS。
+
+九、自连接与去除重复组合
+
+表：customer（与自身连接）
+查询条件：
+  两个客户的国家编号 c_nationkey 相同。
+  两个客户的市场区域 c_mktsegment 不同。
+显示字段：
+  两个客户各自的编号 c_custkey、名称 c_name。
+  共同的国家编号 c_nationkey。
+去重要求：
+  不能将客户与自身配对。
+  同一对客户只出现一次。
+  例如出现 (1, 2) 后，不能再出现 (2, 1)。
+
+十、相关子查询
+
+表：orders
+查询条件：
+  订单总金额 o_totalprice 高于该客户自身平均订单金额。
+平均值范围：
+  找到客户编号 o_custkey 相同的所有订单，
+  对这些订单的 o_totalprice 求平均值。
+显示字段：
+  订单编号 o_orderkey、客户编号 o_custkey、
+  订单总金额 o_totalprice。
+排序要求：
+  客户编号 o_custkey 升序，订单总金额 o_totalprice 降序。
