@@ -35,7 +35,7 @@ grid是一次内核启动所有的线程块的集合
 
 
 
-![alt text](image.png)
+![alt text](images/image.png)
 1. 线程被scalar processor处理的，也就是cuda core/sp，
 2. 线程块被sm处理
 3. 一个thread block一旦被一个sm占用，就不会更换
