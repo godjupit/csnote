@@ -385,9 +385,9 @@ l_suppkey 与 s_suppkey；客户国家为 c_nationkey，供应商国家为 s_nat
 商品编号为 ps_partkey，供应成本为 ps_supplycost。
 
 
-# 第八章：数据库编程重点练习（7 道）
+# 第八章：数据库编程重点练习（6 道）
 
-完整来源见 database/第八章习题.md。SQL 部分按 PostgreSQL / PL/pgSQL 作答，JDBC 部分使用 Java。
+完整来源见 database/第八章习题.md。过程化 SQL 按课件格式作答。
 
 ## 1. 递归查询：查找全部先修课程（重点）
 
@@ -446,12 +446,3 @@ SC 的主码为（sno，cno），grade 可为空，非空值在 0～100 之间�
 等于或高于标准的员工保持不变。
 参数为 NULL 或小于 0 时应报告异常，标准为 0 时允许正常执行，没有员工需要调整时也应正常结束。
 写出过程定义及按标准 8000 调用的语句，并说明这个批量更新是否必须逐行使用游标。
-
-## 7. JDBC：参数化查询与结果集处理
-
-已有 Employee(eid, ename, salary)，eid 为主码，ename 与 salary 非空。
-请编写一个 Java 方法，连接参数作为方法参数传入，使用 JDBC 和 PreparedStatement 查询工资大于等于给定标准 minSalary 的员工，
-显示员工编号、姓名和工资，并按工资降序、员工编号升序输出；不要把 minSalary 直接拼接到 SQL 字符串中。
-查询没有返回记录时应正常结束，连接、语句和结果集资源在正常结束或抛出异常时都必须释放。
-请在代码中体现建立连接、设置参数、执行查询、遍历结果集和释放资源的过程，并说明 ResultSet.next() 的作用以及本题应使用 executeQuery 还是 executeUpdate。
-
