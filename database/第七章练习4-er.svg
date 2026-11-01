@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="title desc">
+<title id="title">研究员、项目、设备的三元使用联系</title>
+<desc id="desc">研究员、项目、设备共同参与使用联系，累计使用小时数是联系属性；各实体编号是主码。</desc>
+<rect width="1000" height="560" fill="#fff"/>
+<g fill="none" stroke="#334155" stroke-width="2">
+<path d="M220 300H410M500 140V240M590 300H780M500 360V450M160 280L90 190M160 280L240 190M840 280L760 190M840 280L930 190M470 100L390 50M530 100L610 50"/>
+<rect x="100" y="280" width="120" height="45"/><rect x="440" y="100" width="120" height="40"/><rect x="780" y="280" width="120" height="45"/>
+<path d="M500 240L590 300L500 360L410 300Z"/>
+<ellipse cx="90" cy="170" rx="75" ry="25"/><ellipse cx="240" cy="170" rx="60" ry="25"/>
+<ellipse cx="390" cy="35" rx="75" ry="25"/><ellipse cx="610" cy="35" rx="70" ry="25"/>
+<ellipse cx="760" cy="170" rx="75" ry="25"/><ellipse cx="930" cy="170" rx="65" ry="25"/>
+<ellipse cx="500" cy="475" rx="110" ry="25"/>
+</g>
+<g fill="#0f172a" font-family="sans-serif" font-size="19" text-anchor="middle" dominant-baseline="middle">
+<text x="160" y="303">研究员</text><text x="500" y="120">项目</text><text x="840" y="303">设备</text><text x="500" y="300">使用</text>
+<text x="90" y="170" text-decoration="underline">研究员编号</text><text x="240" y="170">姓名</text>
+<text x="390" y="35" text-decoration="underline">项目编号</text><text x="610" y="35">项目名称</text>
+<text x="760" y="170" text-decoration="underline">设备编号</text><text x="930" y="170">设备名称</text>
+<text x="500" y="475">累计使用小时数</text>
+<text x="320" y="280">m</text><text x="520" y="190">n</text><text x="680" y="280">p</text>
+</g></svg>
