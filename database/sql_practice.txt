@@ -786,11 +786,13 @@ Bad 的单列属性重命名为 Tno 后再做差；它表示至少被 D1 某人�
 
 Department 在右边，右外连接保留全部系；没有教师的系，教师姓名为 NULL。
 
-# 三、触发器与存储过程典型练习（10 道，暂不附答案）
+# 三、触发器与存储过程典型练习（10 道，附参考答案）
 
 本组使用 PostgreSQL。每题独立，所用表均为练习表，不修改前面的 TPC-H 数据。
 触发器题需写出触发器函数和 CREATE TRIGGER；存储过程题需写出 CREATE PROCEDURE，
 并给出一条 CALL 调用语句。以下表结构已给定，无需另写建表语句。
+参考答案中，%TYPE 表示沿用已有表字段的类型；调用示例的编号需替换为实际数据。
+使用 OUT 参数的存储过程答案适用于 PostgreSQL 14 及以上版本。
 
 ## 触发器（5 道）
 
@@ -801,6 +803,29 @@ Tno 为主键，Job、Salary 均非空。编写 BEFORE INSERT OR UPDATE 行级�
 当新记录的职称 Job 为“教授”且工资 Salary 小于 4000 时，将新工资改为 4000，
 其他情况保留输入值。请直接修改 NEW 中的工资，不在触发器中再次更新 Teacher 表。
 
+参考答案：
+
+```sql
+CREATE OR REPLACE FUNCTION fix_teacher_salary()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.Job = '教授' AND NEW.Salary < 4000 THEN
+        NEW.Salary := 4000;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER teacher_salary_before
+BEFORE INSERT OR UPDATE ON Teacher
+FOR EACH ROW
+EXECUTE FUNCTION fix_teacher_salary();
+```
+
+BEFORE 行级触发器直接修改 NEW，RETURN NEW 将修正后的新行交给原操作保存。
+
 ### 触发器 2：成绩修改日志
 
 已知选课表 SC(Sno, Cno, Grade)，以 (Sno, Cno) 为主键，Grade 允许为 NULL；
@@ -809,12 +834,57 @@ Tno 为主键，Job、Salary 均非空。编写 BEFORE INSERT OR UPDATE 行级�
 向 GradeLog 插入一条日志；NULL 改为具体分数或具体分数改为 NULL 也算变化，
 NULL 改为 NULL 不记日志，ChangedAt 使用当前时间。
 
+参考答案：
+
+```sql
+CREATE OR REPLACE FUNCTION log_grade_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO GradeLog(Sno, Cno, OldGrade, NewGrade, ChangedAt)
+    VALUES (NEW.Sno, NEW.Cno, OLD.Grade, NEW.Grade, CURRENT_TIMESTAMP);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER sc_grade_after_update
+AFTER UPDATE ON SC
+FOR EACH ROW
+WHEN (OLD.Grade IS DISTINCT FROM NEW.Grade)
+EXECUTE FUNCTION log_grade_change();
+```
+
+IS DISTINCT FROM 可以比较 NULL：NULL 与具体分数不同，两个 NULL 相同。普通 <> 不能覆盖这些情况。
+
 ### 触发器 3：删除前保留旧记录
 
 已知选课表 SC(Sno, Cno, Grade)，以 (Sno, Cno) 为主键；
 归档表 SCArchive(Sno, Cno, Grade, DeletedAt) 用来保存被删除的选课记录，允许重复归档。
 编写 DELETE 行级触发器，每删除一条 SC 记录，就将其学号、课程号、成绩和当前时间
 保存到 SCArchive。请自行选择触发时机，并使用被删除行中的字段值。
+
+参考答案：
+
+```sql
+CREATE OR REPLACE FUNCTION archive_deleted_sc()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO SCArchive(Sno, Cno, Grade, DeletedAt)
+    VALUES (OLD.Sno, OLD.Cno, OLD.Grade, CURRENT_TIMESTAMP);
+    RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER sc_archive_before_delete
+BEFORE DELETE ON SC
+FOR EACH ROW
+EXECUTE FUNCTION archive_deleted_sc();
+```
+
+选择 BEFORE DELETE，用 OLD 读取被删除行，RETURN OLD 允许原删除继续。归档与删除属于同一事务，删除失败时归档也撤销。
 
 ### 触发器 4：自动维护课程选课人数
 
@@ -824,6 +894,35 @@ SelectedCount 非空，初值与已有选课记录一致。本题只允许向 SC
 不允许修改 SC.Cno，也不直接修改 SelectedCount。编写行级触发器，使插入一条选课记录后
 对应课程人数加 1，删除一条选课记录后人数减 1；一条语句处理多条记录时也应正确维护人数。
 
+参考答案：
+
+```sql
+CREATE OR REPLACE FUNCTION maintain_selected_count()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE Course
+        SET SelectedCount = SelectedCount + 1
+        WHERE Cno = NEW.Cno;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE Course
+        SET SelectedCount = SelectedCount - 1
+        WHERE Cno = OLD.Cno;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER sc_count_after_change
+AFTER INSERT OR DELETE ON SC
+FOR EACH ROW
+EXECUTE FUNCTION maintain_selected_count();
+```
+
+TG_OP 表示当前触发事件；插入看 NEW，删除看 OLD。每影响一行就增减一次，多行操作也能维护人数。AFTER 触发器的返回值被忽略，因此可以 RETURN NULL。
+
 ### 触发器 5：语句级操作日志
 
 已知员工表 Employee(Eid, Salary)，Eid 为主键；日志表 SalaryStatementLog(LogTime)
@@ -831,6 +930,28 @@ SelectedCount 非空，初值与已有选课记录一致。本题只允许向 SC
 每条成功执行的 UPDATE 语句只向日志表插入一行。再分别说明一条 UPDATE 匹配 4 行和
 匹配 0 行时会新增几条日志，以及若改为 FOR EACH ROW 时这两种情况各新增几条日志。
 本题触发器不设置 WHEN 条件。
+
+参考答案：
+
+```sql
+CREATE OR REPLACE FUNCTION log_salary_statement()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO SalaryStatementLog(LogTime)
+    VALUES (CURRENT_TIMESTAMP);
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER employee_salary_statement
+AFTER UPDATE ON Employee
+FOR EACH STATEMENT
+EXECUTE FUNCTION log_salary_statement();
+```
+
+语句级：UPDATE 匹配 4 行或 0 行，都新增 1 条日志。改为 FOR EACH ROW 后，分别新增 4 条、0 条日志。语句级触发器没有单行 NEW／OLD，本题只记录执行时间。
 
 ## 存储过程（5 道）
 
@@ -841,6 +962,35 @@ SelectedCount 非空，初值与已有选课记录一致。本题只允许向 SC
 90～100 返回“优秀”，60～89 返回“及格”，0～59 返回“不及格”。
 使用 IF 分支给输出参数赋值，并写出传入 85 时的 CALL 调用语句。
 
+参考答案：
+
+```sql
+CREATE OR REPLACE PROCEDURE classify_grade(
+    IN p_grade INTEGER,
+    OUT p_result TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_grade IS NULL THEN
+        p_result := '未录入';
+    ELSIF p_grade < 0 OR p_grade > 100 THEN
+        p_result := '成绩非法';
+    ELSIF p_grade >= 90 THEN
+        p_result := '优秀';
+    ELSIF p_grade >= 60 THEN
+        p_result := '及格';
+    ELSE
+        p_result := '不及格';
+    END IF;
+END;
+$$;
+
+CALL classify_grade(85, NULL);
+```
+
+输出 p_result 为“及格”。在普通 SQL 的 CALL 中，OUT 参数位置传 NULL 占位，调用结果会返回输出参数。
+
 ### 存储过程 2：按部门批量调薪
 
 已知员工表 Employee(Eid, Ename, Deptno, Salary)，Eid 为主键，Deptno、Salary 均非空，
@@ -848,6 +998,33 @@ Salary 为非负数。编写存储过程 raise_salary，输入部门号 p_deptno
 输出实际更新人数 p_count。将指定部门每名员工的 Salary 更新为原工资乘以 (1 + p_rate)，
 p_rate 为 NULL 或不在 0～0.5 范围内时抛出异常；部门没有员工时 p_count 返回 0。
 使用一条 UPDATE 完成调薪，并让 p_count 取该语句实际影响的行数。
+
+参考答案：
+
+```sql
+CREATE OR REPLACE PROCEDURE raise_salary(
+    IN p_deptno Employee.Deptno%TYPE,
+    IN p_rate NUMERIC,
+    OUT p_count BIGINT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_rate IS NULL OR p_rate < 0 OR p_rate > 0.5 THEN
+        RAISE EXCEPTION '加薪比例必须在 0～0.5 之间且不能为 NULL';
+    END IF;
+
+    UPDATE Employee
+    SET Salary = Salary * (1 + p_rate)
+    WHERE Deptno = p_deptno;
+    GET DIAGNOSTICS p_count = ROW_COUNT;
+END;
+$$;
+
+CALL raise_salary(10, 0.1, NULL);
+```
+
+示例假定部门号是整数 10；参数用 %TYPE 沿用表中字段类型。GET DIAGNOSTICS 紧接 UPDATE，读取影响行数；没有匹配员工时为 0。比例为 0 时，匹配的行仍计入影响行数。
 
 ### 存储过程 3：聚集查询与无记录处理
 
@@ -857,12 +1034,67 @@ p_rate 为 NULL 或不在 0～0.5 范围内时抛出异常；部门没有员工�
 平均成绩只计算非 NULL 成绩；没有选课记录时两个计数返回 0，平均成绩返回 NULL，
 有选课但所有成绩均为 NULL 时，有成绩的课程数返回 0，平均成绩也返回 NULL。
 
+参考答案：
+
+```sql
+CREATE OR REPLACE PROCEDURE student_summary(
+    IN p_sno SC.Sno%TYPE,
+    OUT p_total BIGINT,
+    OUT p_graded BIGINT,
+    OUT p_avg NUMERIC
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT COUNT(*), COUNT(Grade), AVG(Grade)
+    INTO p_total, p_graded, p_avg
+    FROM SC
+    WHERE Sno = p_sno;
+END;
+$$;
+
+CALL student_summary('S1', NULL, NULL, NULL);
+```
+
+示例假定学号为文本 S1。COUNT(*) 数全部选课记录，COUNT(Grade) 只数非 NULL 成绩，AVG 忽略 NULL。没有 GROUP BY 的聚集查询即使没有匹配行，也返回一行：0、0、NULL；无需把平均值改成 0。
+
 ### 存储过程 4：循环、判断与批量插入
 
 已知整数表 NumberResult(N, Kind)，N 为主键，Kind 保存“奇数”或“偶数”。
 编写存储过程 fill_numbers，输入整数 p_n；当 p_n 为 NULL 或小于 1 时抛出异常，
 否则先清空 NumberResult，再用循环依次插入 1 到 p_n，每行 Kind 根据 N 的奇偶性填写。
 本题要求使用循环和条件分支，不使用 generate_series；调用成功后表中应恰好有 p_n 行。
+
+参考答案：
+
+```sql
+CREATE OR REPLACE PROCEDURE fill_numbers(IN p_n INTEGER)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_i INTEGER;
+    v_kind TEXT;
+BEGIN
+    IF p_n IS NULL OR p_n < 1 THEN
+        RAISE EXCEPTION 'p_n 必须是大于等于 1 的整数';
+    END IF;
+
+    DELETE FROM NumberResult;
+    FOR v_i IN 1..p_n LOOP
+        IF v_i % 2 = 0 THEN
+            v_kind := '偶数';
+        ELSE
+            v_kind := '奇数';
+        END IF;
+        INSERT INTO NumberResult(N, Kind) VALUES (v_i, v_kind);
+    END LOOP;
+END;
+$$;
+
+CALL fill_numbers(5);
+```
+
+先验证参数再清空表。调用后 N 为 1～5，Kind 依次为奇数、偶数、奇数、偶数、奇数；重复调用会重新生成。
 
 ### 存储过程 5：转账与异常处理（提高）
 
@@ -872,3 +1104,50 @@ p_rate 为 NULL 或不在 0～0.5 范围内时抛出异常；部门没有员工�
 检查通过后，从转出账户扣款并向转入账户增加相同金额。两次更新必须处于同一事务中，
 过程内部不执行 COMMIT，也不捕获并吞掉异常，保证失败时本次转账的修改全部撤销。
 本题不考虑并发转账；写出在显式事务中从账户 1 向账户 2 转账 100 的调用语句。
+
+参考答案：
+
+```sql
+CREATE OR REPLACE PROCEDURE transfer_money(
+    IN p_from Account.Aid%TYPE,
+    IN p_to Account.Aid%TYPE,
+    IN p_amount NUMERIC
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_balance Account.Balance%TYPE;
+BEGIN
+    IF p_from IS NULL OR p_to IS NULL OR p_amount IS NULL THEN
+        RAISE EXCEPTION '账户和金额不能为 NULL';
+    END IF;
+    IF p_from = p_to THEN
+        RAISE EXCEPTION '转出和转入账户不能相同';
+    END IF;
+    IF p_amount <= 0 THEN
+        RAISE EXCEPTION '转账金额必须大于 0';
+    END IF;
+
+    SELECT Balance INTO v_balance FROM Account WHERE Aid = p_from;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '转出账户不存在';
+    END IF;
+    PERFORM 1 FROM Account WHERE Aid = p_to;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '转入账户不存在';
+    END IF;
+    IF v_balance < p_amount THEN
+        RAISE EXCEPTION '转出账户余额不足';
+    END IF;
+
+    UPDATE Account SET Balance = Balance - p_amount WHERE Aid = p_from;
+    UPDATE Account SET Balance = Balance + p_amount WHERE Aid = p_to;
+END;
+$$;
+
+BEGIN;
+CALL transfer_money(1, 2, 100);
+COMMIT;
+```
+
+FOUND 必须在对应查询后立即检查。本题按要求不考虑并发；所有检查在扣款前完成，两次更新在调用者事务中执行。若 CALL 报错，当前事务进入失败状态，应执行 ROLLBACK，转账修改不会提交。
