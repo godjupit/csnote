@@ -1,75 +1,70 @@
-# SQL 基础练习（第一组）
+# 精选练习：20 道 SQL + 15 道关系代数
 
-根据 `sql_example.md` 的范围，使用 PostgreSQL 的 TPC-H 数据库完成下面 10 道查询题。本组
-只列题目，不附答案。
+按题型分组，答案紧跟题目。题目编号重新连续编排，并保留原题号供对照。
+SQL 使用 PostgreSQL 的 TPC-H 数据库；关系代数采用集合语义，投影会去重。
 
-说明：题干在各项要求旁标注了对应的数据库字段名；“数量”“平均值”等统计结果需要通过查询计算
-，不是原表中已有的字段。
+# 一、SQL 查询（20 道）
 
-注意：实际品牌值是 `Brand#43` 这种形式，PostgreSQL 的 `LIKE` 区分大小写。
+## 基础筛选、日期与排序
 
-## 1. 模糊查询与排序
+思路：WHERE 先筛行，再选列、排序和取前 N 条；日期用“>= 起点且 < 下一段起点”。
+
+### SQL 1：模糊查询与排序（原第1组第1题）
 
 查询 `part` 表中，品牌 `p_brand` 以 `Brand#3` 开头、类型 `p_type` 包含 `BRASS` 的商品。
 显示商品编号 `p_partkey`、名称 `p_name`、品牌 `p_brand`、类型 `p_type` 和尺寸 `p_size`，
 按尺寸 `p_size` 降序、商品编号 `p_partkey` 升序排列。
 
-select p_partkey, p_name, p_brand, p_type, p_size
-from part
-order by p_size, p_partkey Desc;
+答案：
 
-## 2. 分组统计与分组筛选
+```sql
+SELECT p_partkey, p_name, p_brand, p_type, p_size
+FROM part
+WHERE p_brand LIKE 'Brand#3%'
+  AND p_type LIKE '%BRASS%'
+ORDER BY p_size DESC, p_partkey ASC;
+```
 
-查询 `customer` 表中各市场区域 `c_mktsegment` 的客户数量（统计客户编号 `c_custkey`）和平
-均账户余额（对 `c_acctbal` 求平均值）。显示市场区域及以上两项统计结果。只保留客户数量超
-过 290 的区域，按平均账户余额降序排列。
-
-select c_mktsegment, count(*), avg(c_acctbal)
-from customer
-group by c_mktsegment
-having count(*) >= 290
-order by avg(c_acctbal) desc;
-
-## 3. 日期筛选与前 N 条记录
+### SQL 2：日期筛选与前 N 条记录（原第1组第3题）
 
 查询 `orders` 表中，下单日期 `o_orderdate` 在 1995 年内且优先级 `o_orderpriority` 包含
 `URGENT` 的订单。显示订单编号 `o_orderkey`、日期 `o_orderdate`、优先级 `o_orderpriority`
  和总金额 `o_totalprice`，按总金额 `o_totalprice` 降序排列，只显示前 10 条。
 
-select o_orderkey, o_orderdate, o_orderpriority, o_totalprice
-from orders
-where extract(year from o_orderdate)  = 1995
-and o_orderpriority like '%URGENT%'
-order by o_totalprice desc
-limit 19;
+答案：
 
+```sql
+SELECT o_orderkey, o_orderdate, o_orderpriority, o_totalprice
+FROM orders
+WHERE o_orderdate >= DATE '1995-01-01'
+  AND o_orderdate < DATE '1996-01-01'
+  AND o_orderpriority LIKE '%URGENT%'
+ORDER BY o_totalprice DESC, o_orderkey
+LIMIT 10;
+```
 
-## 4. 集合条件与算术表达式
+## 分组统计与 HAVING
 
-查询 `lineitem` 表中，发货模式 `l_shipmode` 为 `AIR` 或 `TRUCK`、数量 `l_quantity` 大于
-30 的明细。显示订单编号 `l_orderkey`、商品编号 `l_partkey`、数量 `l_quantity`，以及实际
-金额（扩展价格 `l_extendedprice` 乘以（1 减折扣 `l_discount`））：
-`l_extendedprice * (1 - l_discount)`，将实际金额命名为 `actual_amount`。
+思路：先用 WHERE 限定统计范围，再按对象分组，用 HAVING 筛选数量或平均值。
 
+### SQL 3：分组统计与分组筛选（原第1组第2题）
 
-## 5. 按季度统计
+查询 `customer` 表中各市场区域 `c_mktsegment` 的客户数量（统计客户编号 `c_custkey`）和平
+均账户余额（对 `c_acctbal` 求平均值）。显示市场区域及以上两项统计结果。只保留客户数量超
+过 290 的区域，按平均账户余额降序排列。
 
-统计 `lineitem` 表中，1995—1996 年每年各季度的发货明细数量，以发货日期 `l_shipdate` 为准
-。显示年份（从 `l_shipdate` 提取）、季度（从 `l_shipdate` 提取）和明细数量（统计明细行数
-），只保留明细数量超过 1000 的组，按年份、季度升序排列。
+答案：
 
-可使用例题涉及的 `EXTRACT` 提取年份和季度。
+```sql
+SELECT c_mktsegment, COUNT(*) AS customer_count,
+       AVG(c_acctbal) AS avg_balance
+FROM customer
+GROUP BY c_mktsegment
+HAVING COUNT(*) > 290
+ORDER BY avg_balance DESC;
+```
 
-## 6. 三表连接
-
-查询每个地区的供应商数量。连接 `region`、`nation`、`supplier`，显示地区名称 `r_name` 和
-供应商数量，按供应商数量降序排列。
-
-连接字段：`region.r_regionkey` 与 `nation.n_regionkey` 对应，`nation.n_nationkey` 与
-`supplier.s_nationkey` 对应。供应商数量通过统计供应商编号 `s_suppkey` 得到。
-
-
-## 7. 连接、聚合与 HAVING
+### SQL 4：连接、聚合与 HAVING（原第1组第7题）
 
 查询每个国家的客户数量和平均账户余额。连接 `nation` 和 `customer`，显示国家名称 `n_name`
 、客户数量（统计客户编号 `c_custkey`）及平均账户余额（对 `c_acctbal` 求平均值），只保留
@@ -77,75 +72,67 @@ limit 19;
 
 连接字段：`nation.n_nationkey` 与 `customer.c_nationkey` 对应。
 
-select nation.n_name, count(customer.c_custkey),avg(customer.c_acctbal)
-from nation, customer
-where nation.n_nationkey = customer.c_nationkey
-group by nation.n_nationkey, nation.n_name
-having avg(customer.c_acctbal) > 4000;
+答案：
 
-## 8. 存在与不存在的子查询
+```sql
+SELECT n.n_name, COUNT(c.c_custkey) AS customer_count,
+       AVG(c.c_acctbal) AS avg_balance
+FROM nation n
+JOIN customer c ON c.c_nationkey = n.n_nationkey
+GROUP BY n.n_nationkey, n.n_name
+HAVING AVG(c.c_acctbal) > 4000;
+```
 
-分别编写两条 SQL：
+### SQL 5：分组统计与筛选：订单较多的大额客户（原第5组第9题）
 
-1. 查询至少下过一笔订单的客户，显示客户编号 `c_custkey` 和名称 `c_name`，每个客户只出现
-一次。
-2. 查询从未下过订单的客户，显示客户编号 `c_custkey` 和名称 `c_name`。
+查询 1995 年下单至少 5 笔、且这些订单平均总金额大于 150000 的客户，
+使用 customer 和 orders，以订单日期（o_orderdate）确定年份，
+订单金额为 o_totalprice，客户与订单通过 c_custkey、o_custkey 关联。
+结果显示客户编号（c_custkey）、名称（c_name）、当年订单数量（order_count）
+和当年平均订单金额（avg_amount），按平均订单金额降序、客户编号升序排列。
 
-涉及 `customer` 和 `orders` 两张表，客户编号 `customer.c_custkey` 与订单所属客户编号
-`orders.o_custkey` 对应。尝试分别使用 `EXISTS` 和 `NOT EXISTS`。
+答案：
 
-select customer.c_name
-from customer
-where exists (
-    select 1
-    from orders
-    where orders.o_custkey = customer.c_custkey
-);
+```sql
+SELECT c.c_custkey, c.c_name, COUNT(o.o_orderkey) AS order_count,
+       AVG(o.o_totalprice) AS avg_amount
+FROM customer c
+JOIN orders o ON o.o_custkey = c.c_custkey
+WHERE o.o_orderdate >= DATE '1995-01-01'
+  AND o.o_orderdate < DATE '1996-01-01'
+GROUP BY c.c_custkey, c.c_name
+HAVING COUNT(o.o_orderkey) >= 5
+   AND AVG(o.o_totalprice) > 150000
+ORDER BY avg_amount DESC, c.c_custkey;
+```
 
-select c.c_custkey, c.c_name
-from customer c
-where not exists(
-    select 1
-    from orders o
-    where o.o_custkey = c.c_custkey
-);
+## 自连接与去除重复组合
 
+思路：同表取两个别名，用编号大小关系同时排除自身与反向重复配对。
 
-## 9. 自连接与去除重复组合
+### SQL 6：自连接与去除重复组合（原第1组第9题）
 
 在 `customer` 表中查询国家编号 `c_nationkey` 相同、且市场区域 `c_mktsegment` 不同的客户
 对。显示两个客户的编号 `c_custkey`、名称 `c_name` 和共同的国家编号 `c_nationkey`。要求不
 能将客户与自身配对，同一对客户只出现一次，例如出现 `(1, 2)` 后不能再出现 `(2, 1)`。
 
-select c1.c_custkey, c2.c_custkey
-from customer c1, customer c2
-where c1.c_nationkey = c2.c_nationkey
-and c1.c_mktsegment != c2.c_mktsegment
-and c1.c_custkey < c2.c_custkey;
+答案：
 
-## 10. 相关子查询
+```sql
+SELECT c1.c_custkey AS customer1_id, c1.c_name AS customer1_name,
+       c2.c_custkey AS customer2_id, c2.c_name AS customer2_name,
+       c1.c_nationkey
+FROM customer c1
+JOIN customer c2 ON c2.c_nationkey = c1.c_nationkey
+               AND c1.c_custkey < c2.c_custkey
+WHERE c1.c_mktsegment <> c2.c_mktsegment;
+```
 
-在 `orders` 表中查询订单总金额 `o_totalprice` 高于该客户自身平均订单金额（对相同客户编号
- `o_custkey` 的所有订单的 `o_totalprice` 求平均值）的订单。显示订单编号 `o_orderkey`、客
-户编号 `o_custkey` 和订单总金额 `o_totalprice`，按客户编号 `o_custkey` 升序、订单总金额
-`o_totalprice` 降序排列。
+## 普通子查询与相关子查询
 
-SELECT o1.o_orderkey, o1.o_custkey, o1.o_totalprice
-from orders o1
-where o1.o_totalprice > 
-(
-select avg(o2.o_totalprice)
-from orders o2
-where o2.o_custkey = o1.o_custkey
-)
-order by o_custkey, o_totalprice desc;
+思路：全表平均值固定不变；“同国同类”的平均值要通过字段关联当前客户。
 
-# 第二组：子查询与相关子查询（7 道）
-
-每题写之前，先想两件事：
-外层逐行检查什么？内层需要计算或查找什么？
-
-## 1. 高于所有订单平均金额的订单
+### SQL 7：高于所有订单平均金额的订单（原第2组第1题）
 
 表：orders
 
@@ -157,173 +144,238 @@ order by o_custkey, o_totalprice desc;
   订单总金额 o_totalprice
 
 先想：检查不同订单时，内层计算的平均值需要变化吗？
-select o_orderkey
-from orders o1
-where o1.o_totalprice > (
-    select avg(o2.o_totalprice)
-    from orders o2
+
+答案：
+
+```sql
+SELECT o.o_orderkey, o.o_custkey, o.o_totalprice
+FROM orders o
+WHERE o.o_totalprice > (
+    SELECT AVG(o_totalprice)
+    FROM orders
+);
+```
+
+### SQL 8：相关子查询：高于同国同类客户平均余额（原第5组第6题）
+
+查询账户余额（c_acctbal）高于本国、同一市场区域内所有客户平均账户余额的客户，
+使用 customer，国家由 c_nationkey 确定，市场区域由 c_mktsegment 确定，
+计算平均值时包含当前客户本人。
+结果显示客户编号（c_custkey）、名称（c_name）、国家编号（c_nationkey）、
+市场区域（c_mktsegment）和账户余额（c_acctbal），按账户余额降序排列。
+
+答案：
+
+```sql
+SELECT c.c_custkey, c.c_name, c.c_nationkey,
+       c.c_mktsegment, c.c_acctbal
+FROM customer c
+WHERE c.c_acctbal > (
+    SELECT AVG(c1.c_acctbal)
+    FROM customer c1
+    WHERE c1.c_nationkey = c.c_nationkey
+      AND c1.c_mktsegment = c.c_mktsegment
+)
+ORDER BY c.c_acctbal DESC;
+```
+
+## 存在与不存在
+
+思路：至少一条用 EXISTS，一条也没有用 NOT EXISTS；内层要关联当前客户并限定日期。
+
+### SQL 9：存在与不存在的子查询（原第1组第8题）
+
+分别编写两条 SQL：
+
+1. 查询至少下过一笔订单的客户，显示客户编号 `c_custkey` 和名称 `c_name`，每个客户只出现
+一次。
+2. 查询从未下过订单的客户，显示客户编号 `c_custkey` 和名称 `c_name`。
+
+涉及 `customer` 和 `orders` 两张表，客户编号 `customer.c_custkey` 与订单所属客户编号
+`orders.o_custkey` 对应。尝试分别使用 `EXISTS` 和 `NOT EXISTS`。
+
+答案：
+
+```sql
+-- 至少下过一笔订单
+SELECT c.c_custkey, c.c_name
+FROM customer c
+WHERE EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.o_custkey = c.c_custkey
 );
 
-## 2. 属于中国的客户
-
-表：customer、nation
-
-使用子查询，查询国家名称 n_name 为 'CHINA' 的客户。
-
-相关字段：
-  客户所属国家：customer.c_nationkey
-  国家编号：nation.n_nationkey
-
-显示客户编号 c_custkey、客户名称 c_name。
-
-先想：能不能先在内层找到中国的国家编号，
-再让外层筛选客户？
-select c.c_custkey
-from customer c
-where c.c_nationkey = 
-(
-    select n.n_nationkey
-    from nation n
-    where n.n_name = 'CHINA'
+-- 从未下过订单
+SELECT c.c_custkey, c.c_name
+FROM customer c
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.o_custkey = c.c_custkey
 );
+```
 
-## 3. 至少有一笔大额订单的客户
+### SQL 10：七月活跃、八月沉默的客户（原第4组第3题）
 
-表：customer、orders
+查询 1996 年 7 月至少下过两笔订单、但同年 8 月没有下过任何订单的客户，
+使用 customer 和 orders，以订单日期（o_orderdate）确定月份。
+结果显示客户编号（c_custkey）、名称（c_name）、7 月订单数量（july_count）
+和 7 月订单总金额合计（july_amount），按 7 月订单总金额合计降序排列。
+客户与订单通过 c_custkey、o_custkey 关联。
 
-查询至少有一笔订单总金额 o_totalprice 大于 200000 的客户，
-每个客户只出现一次。
+答案：
 
-相关字段：
-  客户编号：customer.c_custkey
-  订单所属客户：orders.o_custkey
+```sql
+SELECT c.c_custkey, c.c_name, COUNT(*) AS july_count,
+       SUM(o.o_totalprice) AS july_amount
+FROM customer c
+JOIN orders o ON o.o_custkey = c.c_custkey
+WHERE o.o_orderdate >= DATE '1996-07-01'
+  AND o.o_orderdate < DATE '1996-08-01'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM orders o1
+      WHERE o1.o_custkey = c.c_custkey
+        AND o1.o_orderdate >= DATE '1996-08-01'
+        AND o1.o_orderdate < DATE '1996-09-01'
+  )
+GROUP BY c.c_custkey, c.c_name
+HAVING COUNT(*) >= 2
+ORDER BY july_amount DESC;
+```
 
-显示客户编号 c_custkey、客户名称 c_name。
-尝试使用 EXISTS。
+### SQL 11：存在与不存在：买过指定品牌但没买过另一品牌（原第5组第8题）
 
-先想：内层既要检查订单金额，还需要保证这笔订单属于谁？
+查询在 1995 年至少购买过一次 Brand#11 商品、但从未购买过 Brand#12 商品的客户，
+两个品牌的购买记录都只检查 1995 年，允许购买其他品牌。
+使用 customer、orders、lineitem 和 part，以订单日期（o_orderdate）确定年份，
+品牌字段为 p_brand，结果显示客户编号（c_custkey）、名称（c_name），
+每个客户只出现一次，按客户编号升序排列。
+关联字段依次为 c_custkey 与 o_custkey、o_orderkey 与 l_orderkey、
+l_partkey 与 p_partkey。
 
-select c.c_custkey
-from customer c
-where exists (
-    select 1
-    from orders o2
-    where o2.o_custkey = c.c_custkey
-    and o2.o_totalprice > 200000
-);
+答案：
 
-## 4. 从未下过大额订单的客户
+```sql
+SELECT c.c_custkey, c.c_name
+FROM customer c
+WHERE EXISTS (
+    SELECT 1
+    FROM orders o
+    JOIN lineitem l ON l.l_orderkey = o.o_orderkey
+    JOIN part p ON p.p_partkey = l.l_partkey
+    WHERE o.o_custkey = c.c_custkey
+      AND o.o_orderdate >= DATE '1995-01-01'
+      AND o.o_orderdate < DATE '1996-01-01'
+      AND p.p_brand = 'Brand#11'
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM orders o1
+    JOIN lineitem l1 ON l1.l_orderkey = o1.o_orderkey
+    JOIN part p1 ON p1.p_partkey = l1.l_partkey
+    WHERE o1.o_custkey = c.c_custkey
+      AND o1.o_orderdate >= DATE '1995-01-01'
+      AND o1.o_orderdate < DATE '1996-01-01'
+      AND p1.p_brand = 'Brand#12'
+)
+ORDER BY c.c_custkey;
+```
 
-表和显示字段与第 3 题相同。
+## 左连接与零记录
 
-查询不存在任何一笔总金额大于 200000 的订单的客户。
-没有下过订单的客户也要包含在结果中。
+思路：从需要全部保留的表出发，右表日期条件放在 ON；数量数右表主码，空金额转成 0。
 
-尝试使用 NOT EXISTS。
+### SQL 12：连接与零记录：保留所有国家的年度订单统计（原第5组第3题）
 
-注意：“没有大额订单”与“至少有一笔小额订单”是不同的条件。
+统计每个国家的客户在 1995 年下的订单数量及订单总金额合计，
+使用 nation、customer 和 orders，以订单日期（o_orderdate）确定年份，
+要求保留 nation 中所有国家，没有客户或当年没有订单的国家，
+订单数量和订单总金额合计都显示为 0。
+结果显示国家编号（n_nationkey）、国家名称（n_name）、订单数量（order_count）
+和订单总金额合计（total_amount），按国家编号升序排列。
+关联字段为 n_nationkey 与 c_nationkey、c_custkey 与 o_custkey，
+订单编号为 o_orderkey，订单总金额为 o_totalprice。
 
-## 5. 高于自己平均订单金额的订单
+答案：
 
-表：orders
+```sql
+SELECT n.n_nationkey, n.n_name, COUNT(o.o_orderkey) AS order_count,
+       COALESCE(SUM(o.o_totalprice), 0) AS total_amount
+FROM nation n
+LEFT JOIN customer c ON c.c_nationkey = n.n_nationkey
+LEFT JOIN orders o ON o.o_custkey = c.c_custkey
+                  AND o.o_orderdate >= DATE '1995-01-01'
+                  AND o.o_orderdate < DATE '1996-01-01'
+GROUP BY n.n_nationkey, n.n_name
+ORDER BY n.n_nationkey;
+```
 
-查询订单总金额 o_totalprice
-高于该订单所属客户的平均订单金额的订单。
+## 去重与计数单位
 
-显示：
-  订单编号 o_orderkey
-  客户编号 o_custkey
-  订单总金额 o_totalprice
+思路：连接明细后，一行不再代表一笔订单；订单、商品、供应商分别按编号去重计数。
 
-按客户编号升序、订单总金额降序排列。
+### SQL 13：去重与计数单位：多订单、多商品、多供应商的客户（原第5组第4题）
 
-对照第 1 题想：外层换成另一个客户的订单时，
-内层平均值应该怎样变化？
+查询在 1995 年至少下过 3 笔订单、购买过至少 5 种不同商品，
+且这些商品的实际供货明细涉及至少 2 个不同供应商的客户。
+使用 customer、orders 和 lineitem，以订单日期（o_orderdate）确定年份，
+订单按 o_orderkey 去重计数，商品按 l_partkey 去重计数，
+供应商按 l_suppkey 去重计数，同一商品在多笔订单中出现仍只算一种。
+结果显示客户编号（c_custkey）、名称（c_name）、不同订单数量（order_count）、
+不同商品数量（part_count）和不同供应商数量（supplier_count），
+按订单数量降序、客户编号升序排列。
+客户与订单通过 c_custkey、o_custkey 关联，订单与明细通过 o_orderkey、l_orderkey 关联；
+本题只统计至少包含一条明细的订单。
 
-## 6. 高于本国平均余额的客户
+答案：
 
-表：customer
+```sql
+SELECT c.c_custkey, c.c_name,
+       COUNT(DISTINCT o.o_orderkey) AS order_count,
+       COUNT(DISTINCT l.l_partkey) AS part_count,
+       COUNT(DISTINCT l.l_suppkey) AS supplier_count
+FROM customer c
+JOIN orders o ON o.o_custkey = c.c_custkey
+JOIN lineitem l ON l.l_orderkey = o.o_orderkey
+WHERE o.o_orderdate >= DATE '1995-01-01'
+  AND o.o_orderdate < DATE '1996-01-01'
+GROUP BY c.c_custkey, c.c_name
+HAVING COUNT(DISTINCT o.o_orderkey) >= 3
+   AND COUNT(DISTINCT l.l_partkey) >= 5
+   AND COUNT(DISTINCT l.l_suppkey) >= 2
+ORDER BY order_count DESC, c.c_custkey;
+```
 
-查询账户余额 c_acctbal
-高于与自己属于同一个国家的所有客户平均余额的客户。
+## 多层聚合与平均水平
 
-显示：
-  客户编号 c_custkey
-  客户名称 c_name
-  国家编号 c_nationkey
-  账户余额 c_acctbal
+思路：先明确每个对象的统计量，再求平均；本国人均值的分母必须包含零订单客户。
 
-先想：第 5 题通过客户编号关联内外层，
-这一题应该通过哪个字段关联？
-
-## 7. 客户数量超过平均水平的市场区域
+### SQL 14：客户数量超过平均水平的市场区域（原第2组第7题）
 
 在 customer 表中，哪些市场区域的客户数量超过所有市场区域的平均客户数量，
 结果显示市场区域（c_mktsegment）、客户数量（命名为 customer_count），
 并按客户数量降序排列。
-select c1.c_mktsegment
-from customer c1
-group by c1.c_mktsegment
-having count(*) > 
-(
-    select count(*) * 1.0 / count(distinct c2.c_mktsegment)
-    from customer c2
-);
 
-select c1.c_mktsegment
-from customer c1
-having count(*) > 10
-group by c1.c_mktsegment;
+答案：
 
+```sql
+SELECT c_mktsegment, COUNT(*) AS customer_count
+FROM customer
+GROUP BY c_mktsegment
+HAVING COUNT(*) > (
+    SELECT AVG(t.customer_count)
+    FROM (
+        SELECT COUNT(*) AS customer_count
+        FROM customer
+        GROUP BY c_mktsegment
+    ) t
+)
+ORDER BY customer_count DESC;
+```
 
-
-# 第三组：左连接（3 道）
-
-## 1. 显示所有客户及其订单
-
-查询 customer 和 orders，显示客户编号（c_custkey）、客户名称（c_name）
-和订单编号（o_orderkey），要求保留所有客户，没有订单的客户也要显示，
-按客户编号升序排列。
-
-## 2. 统计每个客户的订单数量
-
-查询每个客户的订单数量，显示客户编号（c_custkey）、客户名称（c_name）
-和订单数量（命名为 order_count），没有订单的客户显示为 0，
-按订单数量降序、客户编号升序排列。
-
-## 3. 查询没有下过订单的客户
-
-使用 LEFT JOIN 查询从未下过订单的客户，
-显示客户编号（c_custkey）和客户名称（c_name），按客户编号升序排列。
-
-# 第四组：综合查询
-
-## 1. 1996 年 7 月的销售冠军
-
-查询 1996 年 7 月的销售冠军，即该月销售额最高的供应商。
-以 lineitem 表的发货日期（l_shipdate）确定月份，
-销售额为扩展价格（l_extendedprice）乘以（1 减折扣 l_discount）的合计。
-结果显示销售冠军 ID（l_suppkey），以及该供应商在 1996 年 7 月的销售额
-（命名为 sales_amount）；如有并列冠军，全部显示。
-
-select sum(l_extendedprice * (1 - l_discount)) as price
-from lineitem
-where l_shipdate > '1996-07-01'
-and l_shipdate < '1996-07-31'
-group by l_suppkey
-having sum(l_extendedprice * (1 - l_discount))  >=
-(
-select sum(l_extendedprice * (1 - l_discount)) as price
-from lineitem
-where l_shipdate > '1996-07-01'
-and l_shipdate < '1996-07-31'
-group by l_suppkey
-order by price
-limit 1);
-
-
-
-## 2. 高于本国平均年度消费额的客户
+### SQL 15：高于本国平均年度消费额的客户（原第4组第2题）
 
 查询 1995 年消费总额高于本国客户平均年度消费额的客户，
 使用 customer 和 orders，以订单日期（o_orderdate）确定年份，
@@ -333,15 +385,64 @@ limit 1);
 和年度消费总额（year_amount），按年度消费总额降序排列。
 客户与订单通过 c_custkey、o_custkey 关联。
 
-## 3. 七月活跃、八月沉默的客户
+答案：
 
-查询 1996 年 7 月至少下过两笔订单、但同年 8 月没有下过任何订单的客户，
-使用 customer 和 orders，以订单日期（o_orderdate）确定月份。
-结果显示客户编号（c_custkey）、名称（c_name）、7 月订单数量（july_count）
-和 7 月订单总金额合计（july_amount），按 7 月订单总金额合计降序排列。
+```sql
+SELECT c.c_custkey, c.c_name, c.c_nationkey,
+       COALESCE(SUM(o.o_totalprice), 0) AS year_amount
+FROM customer c
+LEFT JOIN orders o ON o.o_custkey = c.c_custkey
+                  AND o.o_orderdate >= DATE '1995-01-01'
+                  AND o.o_orderdate < DATE '1996-01-01'
+GROUP BY c.c_custkey, c.c_name, c.c_nationkey
+HAVING COALESCE(SUM(o.o_totalprice), 0) > (
+    SELECT COALESCE(SUM(o1.o_totalprice), 0)
+           / COUNT(DISTINCT c1.c_custkey)
+    FROM customer c1
+    LEFT JOIN orders o1 ON o1.o_custkey = c1.c_custkey
+                       AND o1.o_orderdate >= DATE '1995-01-01'
+                       AND o1.o_orderdate < DATE '1996-01-01'
+    WHERE c1.c_nationkey = c.c_nationkey
+)
+ORDER BY year_amount DESC;
+```
+
+### SQL 16：多层聚合：订单数超过本国客户平均水平（原第5组第5题）
+
+查询 1995 年订单数量大于本国客户当年平均订单数量的客户，
+使用 customer 和 orders，以订单日期（o_orderdate）确定年份，
+国家由 c_nationkey 确定；计算本国平均值时包含本国所有客户，
+当年没有订单的客户按 0 单计算，当前客户本人也参与平均值计算。
+结果显示客户编号（c_custkey）、名称（c_name）、国家编号（c_nationkey）
+和当年订单数量（order_count），按国家编号升序、订单数量降序排列。
 客户与订单通过 c_custkey、o_custkey 关联。
 
-## 4. 每个国家的销售冠军
+答案：
+
+```sql
+SELECT c.c_custkey, c.c_name, c.c_nationkey,
+       COUNT(o.o_orderkey) AS order_count
+FROM customer c
+LEFT JOIN orders o ON o.o_custkey = c.c_custkey
+                  AND o.o_orderdate >= DATE '1995-01-01'
+                  AND o.o_orderdate < DATE '1996-01-01'
+GROUP BY c.c_custkey, c.c_name, c.c_nationkey
+HAVING COUNT(o.o_orderkey) > (
+    SELECT COUNT(o1.o_orderkey) * 1.0 / COUNT(DISTINCT c1.c_custkey)
+    FROM customer c1
+    LEFT JOIN orders o1 ON o1.o_custkey = c1.c_custkey
+                       AND o1.o_orderdate >= DATE '1995-01-01'
+                       AND o1.o_orderdate < DATE '1996-01-01'
+    WHERE c1.c_nationkey = c.c_nationkey
+)
+ORDER BY c.c_nationkey, order_count DESC;
+```
+
+## 组内最值与并列
+
+思路：先按客户或供应商汇总，再与同组全部汇总值比较；>= ALL 保留并列，零订单客户也参与比较。
+
+### SQL 17：每个国家的销售冠军（原第4组第4题）
 
 查询 1996 年 7 月每个国家销售额最高的供应商，使用 nation、supplier 和 lineitem，
 以发货日期（l_shipdate）确定月份，按供应商所属国家分组比较，
@@ -352,540 +453,422 @@ limit 1);
 国家与供应商通过 n_nationkey、s_nationkey 关联，
 供应商与明细通过 s_suppkey、l_suppkey 关联。
 
-## 5. 买齐三个品牌的客户
-
-查询在 1995 年分别购买过 Brand#11、Brand#12、Brand#13 三个品牌商品的客户，
-使用 customer、orders、lineitem 和 part，以订单日期（o_orderdate）确定年份，
-商品品牌字段为 p_brand；允许客户同时购买其他品牌。
-结果显示客户编号（c_custkey）、名称（c_name），
-以及该客户在 1995 年购买这三个品牌所涉及的不重复订单数量（order_count），
-同一订单即使包含多条明细，也只能计数一次，按订单数量降序排列。
-关联字段依次为 c_custkey 与 o_custkey、o_orderkey 与 l_orderkey、
-l_partkey 与 p_partkey。
-
-## 6. 每条明细都满足条件的订单
-
-查询 1995 年下单、至少有一条明细，且每条明细均满足以下两个条件的订单：
-折扣（l_discount）大于 0，供应商与下单客户属于同一个国家。
-使用 orders、customer、lineitem 和 supplier，以 o_orderdate 确定年份。
-结果显示订单编号（o_orderkey）、客户编号（o_custkey）
-和订单折后金额（actual_amount），金额为该订单全部明细的
-l_extendedprice * (1 - l_discount) 的合计，按金额降序排列。
-关联字段为 o_custkey 与 c_custkey、o_orderkey 与 l_orderkey、
-l_suppkey 与 s_suppkey；客户国家为 c_nationkey，供应商国家为 s_nationkey。
-
-## 7. 每种商品都有更便宜竞争者的供应商
-
-查询至少供应一种商品，并且其供应的每一种商品都存在更便宜竞争者的供应商，
-使用 supplier 和 partsupp。“更便宜竞争者”指供应同一商品、供应成本更低的其他供应商，
-不同商品的竞争者可以不同，价格相同不算更便宜；本题不考虑库存数量。
-结果显示供应商编号（s_suppkey）、名称（s_name）
-和供应的不同商品数量（part_count），按商品数量降序排列。
-供应商与供货记录通过 s_suppkey、ps_suppkey 关联，
-商品编号为 ps_partkey，供应成本为 ps_supplycost。
-
-
-# 第八章：数据库编程重点练习（6 道）
-
-完整来源见 database/第八章习题.md。过程化 SQL 按课件格式作答。
-
-## 1. 递归查询：查找全部先修课程（重点）
-
-课程表 Course(cno, cname) 保存课程编号和名称，cno 为主码；先修关系表 Prerequisite(cno, prereq_cno) 保存“课程 cno 的直接先修课为 prereq_cno”，
-两个编号共同作为主码并分别参照 Course。
-一门课程可以有多门直接先修课，也可以是多门课程的先修课。
-现有课程 C1～C6，名称分别为“程序设计基础”“数据结构”“数据库系统概论”“操作系统”“离散数学”“毕业设计”，
-先修记录为（C2，C1）、（C3，C2）、（C3，C4）、（C4，C1）、（C4，C5），C6 没有先修课，整个先修关系不存在环。
-请使用 WITH RECURSIVE 查询 C3 的全部直接和间接先修课程，显示课程编号（cno）与课程名称（cname），
-同一课程通过不同路径找到时只显示一次，不输出 C3 本身，并按课程编号升序排列；再说明初始查询、递归查询和终止条件分别是什么，
-以及为什么只连接固定次数不能适应任意层数的先修关系。
-
-## 2. 递归查询：补齐没有订单的日期（重点）
-
-订单表 Orders(oid, odate, amount) 中，oid 为主码，odate 为 DATE 类型，
-amount 为非空 NUMERIC 类型，每行表示一笔订单。
-现有订单（1，2026-01-01，100）、（2，2026-01-01，50）、（3，2026-01-03，
-80）、（4，2026-01-05，120），没有其他订单。
-请使用 WITH RECURSIVE 生成 2026-01-01 至 2026-01-05 的完整日期序列，并统计每一天的订单数量和订单总金额，
-显示日期（d）、订单数量（order_count）和总金额（total_amount），没有订单的日期也必须显示，
-数量与金额均为 0，按日期升序排列。
-
-## 3. 过程化 SQL：变量、查询结果与游标（重点）
-
-已有选课表 SC(sno, cno, grade)，主码为（sno，cno），grade 可为空，非空值在 0～100 之间。
-现要处理三个任务：取得全表非空成绩的平均值；取得学生 S1 选修课程 C1 的课程号和成绩；逐行查看 S1 的全部选课记录，
-并对每门课程输出“及格”“不及格”或“未出成绩”。
-请分别说明每个查询可能返回几行、每行有几列，应如何接收或处理结果，为什么“返回两列”不等于“必须使用游标”，以及零行查询结果与返回一行 NULL 的结果有什么不同；
-再写出一个 PL/pgSQL 匿名块，显式声明、打开、读取并关闭游标，完成第三个任务，成绩大于等于 60 判为及格，
-并用 RAISE NOTICE 输出课程号和状态。
-S1 没有选课记录时，程序应正常结束，不输出课程状态。
-
-## 4. 存储过程：使用游标统计成绩分布（重点）
-
-已有 Course(cno, cname) 和 SC(sno, cno, grade)，Course 的主码为 cno，
-SC 的主码为（sno，cno），grade 可为空，非空值在 0～100 之间。
-请编写存储过程 course_grade_distribution，以课程编号 p_cno 为输入参数，显式使用游标逐行读取该课程的成绩，
-分别统计 [90,100]、[80,90)、[70,80)、[60,70)、[0,60) 五个分数段以及未出成绩的人数，
-并通过 RAISE NOTICE 输出六项统计结果。
-六个计数器初始值均为 0，不存在的课程应报告异常；课程存在但没有选课记录时，六项统计均输出 0。
-写出存储过程定义，并给出查询课程 C1 成绩分布的调用语句。
-
-## 5. 存储函数：将百分制成绩转换成等级（重点）
-
-已有 SC(sno, cno, grade)，主码为（sno，cno），grade 为可空整数。
-请编写返回 TEXT 的 PL/pgSQL 存储函数 grade_level(p_grade INT)，将 90～100 分转换为 A、
-80～89 分转换为 B、70～79 分转换为 C、60～69 分转换为 D、0～59 分转换为 E，输入 NULL 时返回 NULL，
-输入小于 0 或大于 100 的分数时报告异常。
-再在一条 SELECT 中调用该函数，显示每条选课记录的学号、课程号、原始成绩和等级，按学号、课程号升序排列，
-不修改 SC 中的 grade；最后说明该任务为什么适合使用函数，以及存储函数与存储过程在返回值声明和调用方式上有什么区别。
-
-## 6. 存储过程：按参数调整工资
-
-员工表 Employee(eid, ename, salary) 以 eid 为主码，salary 为非空 NUMERIC 类型且不能小于 0。
-请编写存储过程 raise_low_salary，以工资标准 p_threshold 为输入参数，把工资低于该标准的员工工资统一调整为该标准，
-等于或高于标准的员工保持不变。
-参数为 NULL 或小于 0 时应报告异常，标准为 0 时允许正常执行，没有员工需要调整时也应正常结束。
-写出过程定义及按标准 8000 调用的语句，并说明这个批量更新是否必须逐行使用游标。
-
-
-# 第五章：数据库完整性重点练习（6 道）
-
-完整来源见 database/第五章习题.md；触发器按课件教学格式作答，各题相互独立。
-
-## 1. 建表：实体完整性、参照完整性与用户定义完整性
-
-要建立部门表 Department(dno, dname) 和员工表 Employee(eid, ename, age, job, salary, dno)。
-dno 是部门编号，dname 是部门名称；eid、ename、age、job、salary 分别是员工编号、姓名、年龄、职称和工资。
-部门编号和员工编号分别作为各自表的主码。部门名称不能为空，也不能重复；员工姓名不能为空。
-年龄不能为空，只能在 18～65 之间；职称不能为空，只能是“讲师”“副教授”或“教授”；工资不能为空，且不能小于 0。
-员工必须属于一个已经存在的部门。另外，教授的工资不能低于 4000，其他职称没有这一最低工资要求。
-请写出两张表的建表语句，并指出其中哪些约束属于实体完整性、参照完整性和用户定义完整性。
-再说明“教授工资至少 4000”为什么要同时检查职称和工资，为什么不能只写 CHECK(salary >= 4000)。
-
-## 2. 外码：哪些操作会破坏参照完整性
-
-部门表 Department(dno) 有 D1、D2 两个部门，dno 是主码。
-员工表 Employee(eid, dno) 中，eid 是主码，dno 是参照部门编号的外码，可以为空。
-目前三名员工的记录是（E1，D1）、（E2，D1）、（E3，D2）。下面每次操作都从这份初始数据开始，不连续执行。
-请先判断：新增员工（E4，D9），或把 E1 的部门改为 D9，能否成功？
-再考虑删除部门 D1：如果外码分别使用 ON DELETE NO ACTION、ON DELETE CASCADE、ON DELETE SET NULL，部门和员工记录各会怎样变化？
-接着考虑把部门编号 D1 改为 D8：如果分别使用 ON UPDATE NO ACTION、ON UPDATE CASCADE、ON UPDATE SET NULL，两个表各会怎样变化？
-最后回答：如果员工的部门编号还要求 NOT NULL，置空操作能否成功？只删除员工 E1，会不会违反本题的外码约束？请说明原因。
-
-## 3. 约束命名、修改与空值
-
-商品表 Product(pid, pname, price, stock) 记录商品编号、名称、价格和库存。
-pid 是主码，pname 不能为空；price 是不能为空的 NUMERIC 类型，stock 是不能为空的 INT 类型。
-目前有两条记录：（P1，键盘，100，10）、（P2，鼠标，50，0）。
-请用 ALTER TABLE 增加两个带名字的约束：价格必须大于 0，约束名为 ck_price_positive；库存必须在 0～1000 之间，约束名为 ck_stock_range。
-随后，把库存范围改为 0～500，写出先删除旧约束、再增加新约束的语句。
-如果某条记录的库存已经是 800，数据库在添加新约束时立即检查已有数据，这个新约束还能添加成功吗？
-再回答三个判断问题并说明原因：主码能否重复或为空？外码是否一定不能为空？只写 CHECK(score BETWEEN 0 AND 100)，是否就能禁止 score 为空？
-
-## 4. 读触发器：事件、条件、动作与 OLD／NEW
-
-选课表 SC(sno, cno, grade) 记录学号、课程号和成绩，以（sno，cno）为主码，成绩可以为空。
-日志表 SC_Log(sno, cno, old_grade, new_grade) 用来保存成绩修改前后的值。
-请阅读下面的触发器，指出：它在什么操作发生时触发，是操作前还是操作后，满足什么条件才记录日志，记录到哪里。
-再解释 OldTuple 和 NewTuple 分别表示什么。
-现在一条 UPDATE 修改了 3 行成绩：60 改为 75，80 改为 85，NULL 改为 90。
-请判断哪几行会记录日志，写出日志中的旧成绩和新成绩，并说明旧成绩为 NULL 时，WHEN 条件能否成立。
-
-CREATE TRIGGER Grade_Change_Log
-AFTER UPDATE OF grade ON SC
-REFERENCING OLD ROW AS OldTuple
-            NEW ROW AS NewTuple
-FOR EACH ROW
-WHEN (NewTuple.grade >= OldTuple.grade + 10)
-    INSERT INTO SC_Log(sno, cno, old_grade, new_grade)
-    VALUES (OldTuple.sno, OldTuple.cno,
-            OldTuple.grade, NewTuple.grade);
-
-## 5. 写触发器：自动修正教授工资
-
-教师表 Teacher(tno, tname, job, salary) 保存教师编号、姓名、职称和工资，tno 是主码。
-职称和工资不能为空，工资不能小于 0。目前没有定义“教授工资至少 4000”的 CHECK 约束。
-现在希望：插入或修改教师记录时，如果新记录是“教授”且工资低于 4000，就自动把工资改为 4000；其他记录保持不变。
-请按课件格式写一个 BEFORE INSERT OR UPDATE 行级触发器，直接修改新记录的工资，不要在里面再写一条 UPDATE Teacher。
-说明应该使用 NEW 还是 OLD，以及为什么在 BEFORE 阶段处理。
-再分别判断“教授，3500”“讲师，3500”“教授，5000”最后会保存多少工资。
-最后比较：如果不用触发器，只定义 CHECK(job <> '教授' OR salary >= 4000)，输入教授工资 3500 时，两种方法的处理有什么不同？
-
-## 6. 行级与语句级触发器：执行次数和失败处理
-
-学生表 Student(sno, sname) 以学号 sno 为主码。
-日志表 StudentInsertLog(numbers) 用来记录每条 INSERT 新增了多少名学生。下面是课件格式的语句级触发器。
-如果一条 INSERT 成功插入 3 名学生，触发动作执行几次，日志增加几行，numbers 是多少？
-如果换成连续执行 3 条 INSERT，每条插入 1 名学生，日志又会怎样？
-再假设表上还有一个没有 WHEN 条件的 AFTER INSERT 行级触发器：一条语句插入 3 行时，它执行几次？
-如果一条 INSERT 成功执行，但实际插入 0 行，行级和语句级触发动作分别执行几次？
-最后说明 BEFORE 触发器、原始插入操作、AFTER 触发器的执行顺序。
-如果某次触发动作失败，本次语句已做的数据修改和日志修改应怎样处理？按课件的整体撤销规则回答，不考虑程序捕获异常的特殊情况。
-
-CREATE TRIGGER Student_Count
-AFTER INSERT ON Student
-REFERENCING NEW TABLE AS Delta
-FOR EACH STATEMENT
-    INSERT INTO StudentInsertLog(numbers)
-    SELECT COUNT(*) FROM Delta;
-
-
-# 第五章补充：选择题与填空题
-
-## 选择题（单选，共 8 题）
-
-选择 1：主码的基本要求
-关系 SC(sno, cno, grade) 以（sno，cno）为主码。下列说法正确的是（    ）。
-A. sno 单独必须唯一，cno 单独也必须唯一
-B. 只要 sno 非空，cno 就可以为空
-C.（sno，cno）的组合必须唯一，且两列都不能为空
-D. 组合主码只要求两列不能同时为空
-
-选择 2：CHECK 与 NULL
-列 score 允许为空，仅定义 CHECK(score BETWEEN 0 AND 100)，没有其他约束。下列插入值中不能通过该约束的是（    ）。
-A. NULL
-B. 0
-C. 100
-D. 101
-
-选择 3：外码是否允许重复
-Employee(eid, dno) 中 eid 为主码，dno 是允许为空的外码，参照 Department(dno)。部门 D1 已存在。下列说法正确的是（    ）。
-A. 两名不同员工的 dno 都为 D1，会违反外码约束
-B. 两名不同员工的 dno 都为 D1，可以满足外码约束
-C. 因为 dno 是外码，所以它自动具有唯一约束
-D. 只要 dno 非空，就可以填写任何不存在的部门编号
-
-选择 4：级联删除的方向
-SC.sno 参照 Student.sno，并设置 ON DELETE CASCADE。学生 S1 存在且有两条选课记录。删除 Student 中的 S1 时，下列结果正确的是（    ）。
-A. 删除 S1 及其对应的两条选课记录
-B. 删除 SC 中所有学生的选课记录
-C. 保留 S1，只删除其对应选课记录
-D. 必须拒绝删除，因为任何外码都不允许级联删除
-
-选择 5：元组上的约束
-Teacher 的 job、salary 都非空。要准确表达“如果职称是教授，工资不得低于 4000；其他职称只需满足已有的非负工资约束”，应增加（    ）。
-A. CHECK(salary >= 4000)
-B. CHECK(job = '教授' AND salary >= 4000)
-C. CHECK(job <> '教授' OR salary >= 4000)
-D. CHECK(job = '教授' OR salary >= 4000)
-
-选择 6：行级与语句级触发器
-一条 UPDATE 成功修改 4 行，同一表上分别有一个无 WHEN 条件的行级触发器和一个无 WHEN 条件的语句级触发器，二者均针对本次 UPDATE。它们的触发动作执行次数分别为（    ）。
-A. 1 次、1 次
-B. 4 次、1 次
-C. 1 次、4 次
-D. 4 次、4 次
-
-选择 7：自动修正新值
-按照课件格式，希望在保存数据之前把新记录中低于下限的工资自动改到下限，应优先选择（    ）。
-A. AFTER 行级触发器，直接修改 OLD
-B. BEFORE 行级触发器，修改 NEW
-C. AFTER 语句级触发器，对 OLD 修改
-D. 只定义 CHECK，让数据库自动把工资改到下限
-
-选择 8：WHEN 条件与空值
-行级触发器的条件为 WHEN(NewTuple.grade >= OldTuple.grade + 10)。某行成绩从 NULL 改为 90 时，该条件的值和触发动作的执行情况是（    ）。
-A. TRUE，执行动作
-B. FALSE，执行动作
-C. UNKNOWN，不执行动作
-D. TRUE，不执行动作
-
-## 填空题（共 6 题）
-
-填空 1：三类完整性
-关系模型的三类完整性分别是________、________和________。其中，主码唯一且非空属于________；员工的非空部门编号必须在部门表中存在，属于________。
-
-填空 2：约束关键字
-创建表时，要求姓名不能为空使用________，要求编号之外的某列值不能重复可以使用________，要求成绩在指定范围内可以使用________。若要求成绩既不能为空又必须在 0～100 之间，应同时使用________约束和________约束。
-
-填空 3：参照完整性违约处理
-删除被参照表中的一行并造成参照完整性冲突时，课件列出的三种处理策略是________、________、________。如果参照表的外码还具有 NOT NULL 约束，则其中的________策略无法成功完成置空操作。
-
-填空 4：命名与修改约束
-为 stock 增加一个名为 ck_stock 的库存非负约束，请补全语句：ALTER TABLE Product ADD ________ ck_stock ________(stock >= 0); 删除该约束时使用：ALTER TABLE Product DROP ________ ck_stock;
-
-填空 5：触发器的组成与旧值、新值
-触发器的 ECA 规则中，E 表示________，C 表示________，A 表示________。在 UPDATE 行级触发器中，OLD 表示________，NEW 表示________；INSERT 行级触发器处理新增行时使用________，DELETE 行级触发器查看被删除行时使用________。
-
-填空 6：触发粒度与执行顺序
-FOR EACH ROW 表示________触发器，FOR EACH STATEMENT 表示________触发器。一条成功执行但影响 0 行的 UPDATE，在不存在 WHEN 条件等额外限制时，对应的行级触发动作执行________次，语句级触发动作执行________次。按课件顺序，先执行________触发器，再执行原始数据操作，最后执行________触发器。
-
-
-# 第二章：关系代数与投影专项（37 题，以表达式书写为主）
-
-来源、符号和覆盖表见 database/第二章习题.md；先不附答案。
-
-
-
-投影属于第二章“关系数据库”的 2.4 节“关系代数”，本地 PPT 第 74～76 页专门讲投影，第 70～73 页讲选择，
-第 77～88 页讲连接，第 89～95 页讲除运算与综合查询。
-
-《数据库系统概论（第6版）习题解析与实验指导》的对应章节叫“第2章 关系模型”。本组参考书第 15～27 页（PDF 第 30～42 页），
-按本地课件范围重新编题，不直接照抄参考答案。
-
-本组共 37 题：23 道关系代数表达式书写题、3 道 SQL 对照题、5 道手算题、6 道基础题，先不附答案。
-重点练表达式的写法，题干用短句说明要查什么。
-
-覆盖内容；课件或习题书位置；本组题号
-关系、关系模式、码、三类完整性、关系语言分类；PPT 第 3～47 页；书第 15～17、23～24 页；基础 1～6
-投影、去重、选择及两者的组合；PPT 第 70～76 页；书写 1～4；SQL 1；手算 1
-等值连接、自然连接、多表连接、先修课查询；PPT 第 77～84、95 页；书写 5～6、13～15、21；手算 3
-并、差、交、未选课或未供货的对象；PPT 第 52～57 页；书第 19～21 页；书写 7～10、16、22；
-SQL 2～3；手算 2
-除运算、象集、全部满足、集合包含；PPT 第 64～65、89～95 页；书第 21～23 页；书写 11～12、17、23；
-手算 4
-重命名、自连接、与一组记录中的每个值比较；书第 24、26 页；书写 18
-悬浮元组、左外连接、右外连接；PPT 第 85～88 页；书第 24～27 页；书写 19～20；手算 3
-结果的行数、列数与基本运算改写；PPT 第 52～58、74、79、96 页；书第 22～27 页；书写 21～23；
-手算 5
-
-## 符号与作答约定
-
-关系代数采用课件的集合语义，结果不保留重复元组。π 表示投影，σ 表示选择，∪ 表示并，− 表示差，∩ 表示交，
-× 表示笛卡尔积，⋈ 表示自然连接，⋈条件 表示带条件连接，÷ 表示除运算，ρ 表示重命名。左外连接、右外连接可用 ⟕、⟖，
-也可明确写出中文名称和连接条件。
-
-可以写成 π_{Sno}(σ_{Cno='C1'}(SC)) 这样的纯文本形式，不要求输入 LaTeX。允许先给中间结果起名字，
-再写下一步表达式。只要求返回题目指定的列，关系代数题不要求排序；需要同表连接时，要区分两个副本的名字。
-
-## 公共表：学生与课程（书写 1～12、SQL 1～2）
-
-Student(Sno, Sname, Smajor, Sage) 分别记录学号、姓名、专业、年龄，Sno 为主码；
-Course(Cno, Cname, Cpno) 记录课程号、课程名、直接先修课号，Cno 为主码；SC(Sno, Cno, Grade) 记录选课及成绩，
-以（Sno，Cno）为主码。SC 中的学号与课程号分别参照 Student 和 Course。
-
-学生数据如下。姓名可能相同，学号不同就视为不同学生。
-
-Sno；Sname；Smajor；Sage
-S1；张明；计算机；20
-S2；李红；计算机；21
-S3；王强；数学；20
-S4；张明；计算机；20
-S5；赵宁；物理；22
-
-Cno；Cname；Cpno
-C1；数据库；C2
-C2；程序设计；NULL
-C3；离散数学；NULL
-C4；操作系统；C2
-
-Sno；Cno；Grade
-S1；C1；90
-S1；C2；85
-S1；C3；95
-S1；C4；80
-S2；C1；80
-S2；C3；75
-S3；C2；88
-S4；C1；70
-S4；C2；65
-S4；C3；60
-
-## 关系代数书写题：学生与课程
-
-参考 PPT 第 70～76、94～95 页的学生选课查询例题。
-
-### 书写 1：只取一列
+答案：
+
+```sql
+SELECT n.n_name, s.s_suppkey, s.s_name,
+       SUM(l.l_extendedprice * (1 - l.l_discount)) AS sales_amount
+FROM nation n
+JOIN supplier s ON s.s_nationkey = n.n_nationkey
+JOIN lineitem l ON l.l_suppkey = s.s_suppkey
+WHERE l.l_shipdate >= DATE '1996-07-01'
+  AND l.l_shipdate < DATE '1996-08-01'
+GROUP BY n.n_nationkey, n.n_name, s.s_suppkey, s.s_name
+HAVING SUM(l.l_extendedprice * (1 - l.l_discount)) >= ALL (
+    SELECT SUM(l1.l_extendedprice * (1 - l1.l_discount))
+    FROM supplier s1
+    JOIN lineitem l1 ON l1.l_suppkey = s1.s_suppkey
+    WHERE s1.s_nationkey = n.n_nationkey
+      AND l1.l_shipdate >= DATE '1996-07-01'
+      AND l1.l_shipdate < DATE '1996-08-01'
+    GROUP BY s1.s_suppkey
+)
+ORDER BY n.n_name, s.s_suppkey;
+```
+
+### SQL 18：本国订单数量最多的客户（原第4组第8题）
+
+查询下单数量大于等于本国其他所有客户下单数量的客户，使用 customer 和 orders，
+客户所属国家由 c_nationkey 确定，订单数量通过统计订单编号（o_orderkey）得到，
+没有下过订单的客户按 0 计算；同一国家如有并列最多的客户，全部显示。
+结果显示客户编号（c_custkey）、名称（c_name）、国家编号（c_nationkey）
+和订单数量（order_count），按国家编号升序、客户编号升序排列。
+客户与订单通过 c_custkey、o_custkey 关联。
+
+答案：
+
+```sql
+SELECT c.c_custkey, c.c_name, c.c_nationkey,
+       COUNT(o.o_orderkey) AS order_count
+FROM customer c
+LEFT JOIN orders o ON o.o_custkey = c.c_custkey
+GROUP BY c.c_custkey, c.c_name, c.c_nationkey
+HAVING COUNT(o.o_orderkey) >= ALL (
+    SELECT COUNT(o1.o_orderkey)
+    FROM customer c1
+    LEFT JOIN orders o1 ON o1.o_custkey = c1.c_custkey
+    WHERE c1.c_nationkey = c.c_nationkey
+    GROUP BY c1.c_custkey
+)
+ORDER BY c.c_nationkey, c.c_custkey;
+```
+
+## 全称条件
+
+思路：“每笔都达标”可检查最低金额是否达标；内连接保证至少有一笔订单。
+
+### SQL 19：全称条件：每笔订单都达到金额要求的客户（原第5组第1题）
+
+查询在 1995 年至少下过一笔订单，且当年每笔订单总金额（o_totalprice）
+都不低于 100000 的客户，其他年份的订单不影响判断。
+使用 customer 和 orders，以订单日期（o_orderdate）确定年份，
+客户与订单通过 c_custkey、o_custkey 关联。
+结果显示客户编号（c_custkey）、名称（c_name）
+和当年订单数量（order_count），按订单数量降序、客户编号升序排列。
+
+答案：
+
+```sql
+SELECT c.c_custkey, c.c_name, COUNT(*) AS order_count
+FROM customer c
+JOIN orders o ON o.o_custkey = c.c_custkey
+WHERE o.o_orderdate >= DATE '1995-01-01'
+  AND o.o_orderdate < DATE '1996-01-01'
+GROUP BY c.c_custkey, c.c_name
+HAVING MIN(o.o_totalprice) >= 100000
+ORDER BY order_count DESC, c.c_custkey;
+```
+
+## 集合包含
+
+思路：双重 NOT EXISTS 表示“没有目标商品被漏掉”；目标集合为空时也要正确处理。
+
+### SQL 20：集合包含：供应了指定供应商的全部商品（原第5组第2题）
+
+查询供应了编号为 1 的供应商所供应的全部商品的其他供应商，
+使用 supplier 和 partsupp；允许候选供应商额外供应其他商品，
+不比较供应成本和库存，只比较商品编号（ps_partkey）是否全部覆盖。
+结果显示供应商编号（s_suppkey）、名称（s_name），每个供应商只出现一次，
+按供应商编号升序排列，编号为 1 的供应商本人不显示。
+供应商与供货记录通过 s_suppkey、ps_suppkey 关联；
+如果编号为 1 的供应商没有任何供货记录，则其他所有供应商均满足条件。
+
+答案：
+
+```sql
+SELECT s.s_suppkey, s.s_name
+FROM supplier s
+WHERE s.s_suppkey <> 1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM partsupp p1
+      WHERE p1.ps_suppkey = 1
+        AND NOT EXISTS (
+            SELECT 1
+            FROM partsupp p2
+            WHERE p2.ps_suppkey = s.s_suppkey
+              AND p2.ps_partkey = p1.ps_partkey
+        )
+  )
+ORDER BY s.s_suppkey;
+```
+
+# 二、关系代数（15 道）
+
+公共表：Student(Sno,Sname,Smajor,Sage)、Course(Cno,Cname,Cpno)、SC(Sno,Cno,Grade)。
+Student、Course 的主码分别是 Sno、Cno；SC 的主码为 (Sno,Cno)，分别参照学生和课程。
+
+供前两题使用的学生数据：
+S1，张明，计算机，20
+S2，李红，计算机，21
+S3，王强，数学，20
+S4，张明，计算机，20
+S5，赵宁，物理，22
+
+教师相关题使用 Teacher(Tno,Tname,Tage,Tsex)、Department(Dno,Dname,DTno)、Work(Tno,Dno,Year,Salary)。
+DTno 是系主任教师号；Work 每名教师最多一条记录，可存在没有工作记录的教师和没有教师的系。
+
+π：投影；σ：选择；⋈：自然连接；⋈条件：条件连接；÷：除；ρ：重命名；⟕、⟖：左、右外连接。
+Student、SC、Course 的自然连接只按同名的 Sno、Cno 连接；表达式也可分步写中间结果。
+
+## 选择、投影与连接
+
+思路：选择筛行，投影取列并去重；跨表条件先连接，再筛选和投影。
+
+### 关系代数 1：只取一列（原书写1）
 
 查询学生中出现过哪些专业，只输出专业 Smajor。请写关系代数表达式，并根据公共数据列出结果。
 
-### 书写 2：取两列并去重
+答案：
+
+```text
+π_{Smajor}(Student)
+```
+
+结果：{计算机，数学，物理}。
+
+### 关系代数 2：取两列并去重（原书写2）
 
 查询学生的姓名和专业，只输出 Sname、Smajor。请写关系代数表达式，并判断两名同叫张明的计算机专业学生在结果中显示几行。
 
-### 书写 3：只筛选行
+答案：
 
-查询年龄不超过 20 岁的学生，保留 Student 的全部列。请写关系代数表达式，并说明为什么这一题不需要投影。
+```text
+π_{Sname,Smajor}(Student)
+```
 
-### 书写 4：先筛选，再取列
+两名“张明，计算机”投影后合并为一行，整个结果共 4 行。
+
+### 关系代数 3：先筛选，再取列（原书写4）
 
 查询计算机专业且年龄不超过 20 岁的学生，只显示 Sno、Sname。请写关系代数表达式。
 
-### 书写 5：两表连接
+答案：
+
+```text
+π_{Sno,Sname}(σ_{Smajor='计算机' ∧ Sage<=20}(Student))
+```
+
+### 关系代数 4：两表连接（原书写5）
 
 查询 C1 课程成绩大于等于 80 分的学生，显示 Sno、Sname、Grade。请写关系代数表达式。
 
-### 书写 6：三表连接
+答案：
+
+```text
+π_{Sno,Sname,Grade}(Student ⋈ σ_{Cno='C1' ∧ Grade>=80}(SC))
+```
+
+### 关系代数 5：三表连接（原书写6）
 
 查询选修了课程名为“数据库”的学生，显示 Sno、Sname。请写关系代数表达式，不把“数据库”的课程号直接写死为 C1。
 
-### 书写 7：同时满足两个条件：交
+答案：
+
+```text
+π_{Sno,Sname}(Student ⋈ SC ⋈ σ_{Cname='数据库'}(Course))
+```
+
+## 交、并、差与不存在
+
+思路：“同时”用交，“或”用并，“没有”从全部对象中减去符合条件的集合。
+
+### 关系代数 6：同时满足两个条件：交（原书写7）
 
 查询既选修 C1 又选修 C2 的学生，只输出 Sno。请使用交运算写关系代数表达式；一条 SC 记录只代表一个学生选一门课程。
 
-### 书写 8：至少满足一个条件：并
+答案：
+
+```text
+π_{Sno}(σ_{Cno='C1'}(SC)) ∩ π_{Sno}(σ_{Cno='C2'}(SC))
+```
+
+### 关系代数 7：至少满足一个条件：并（原书写8）
 
 查询选修 C1 或 C2 的学生，只输出 Sno，选了两门的学生也只显示一次。请使用并运算写关系代数表达式。
 
-### 书写 9：没有选指定课程：差
+答案：
+
+```text
+π_{Sno}(σ_{Cno='C1'}(SC)) ∪ π_{Sno}(σ_{Cno='C2'}(SC))
+```
+
+### 关系代数 8：没有选指定课程：差（原书写9）
 
 查询没有选修 C1 的学生，只输出 Sno。请使用差运算，结果必须包括没有任何选课记录的学生。
 
-### 书写 10：没有任何选课记录
+答案：
+
+```text
+π_{Sno}(Student) − π_{Sno}(σ_{Cno='C1'}(SC))
+```
+
+从全部学生学号出发，才能保留没有任何选课记录的学生。
+
+### 关系代数 9：没有任何选课记录（原书写10）
 
 查询一门课也没有选的学生，显示 Sno、Sname。请写关系代数表达式。
 
-### 书写 11：选修全部课程：除
+答案：
+
+```text
+π_{Sno,Sname}(Student ⋈ (π_{Sno}(Student) − π_{Sno}(SC)))
+```
+
+## 除运算与集合包含
+
+思路：先确定需要覆盖的目标集合，再用除运算找出全部覆盖者；多选其他课程不影响满足条件。
+
+### 关系代数 10：选修全部课程：除（原书写11）
 
 查询选修了 Course 表中全部课程的学生，只输出 Sno。请使用除运算，成绩高低不影响“已经选修”的判断。
 Course 在本题数据中非空。
 
-### 书写 12：包含另一名学生选的全部课程
+答案：
+
+```text
+π_{Sno,Cno}(SC) ÷ π_{Cno}(Course)
+```
+
+### 关系代数 11：包含另一名学生选的全部课程（原书写12）
 
 查询至少选修了学生 S4 所选全部课程的其他学生，显示 Sno、Sname。允许多选其他课程，但不显示 S4 本人。
 请使用除运算；本题 S4 至少选了一门课。
 
-## 公共表：SPJ 供货（书写 13～17、SQL 3）
+答案：
 
-本组题型参考书第 17～22 页（PDF 第 32～37 页）的 SPJ 综合题，表结构如下。
+```text
+T = π_{Cno}(σ_{Sno='S4'}(SC))
+U = π_{Sno,Cno}(SC) ÷ T
+结果 = π_{Sno,Sname}(σ_{Sno<>'S4'}(Student ⋈ U))
+```
 
-关系模式；字段含义
-S(SNO, SNAME, STATUS, CITY)；供应商编号、名称、状态、所在城市
-P(PNO, PNAME, COLOR, WEIGHT)；零件编号、名称、颜色、重量
-J(JNO, JNAME, CITY)；工程编号、名称、所在城市
-SPJ(SNO, PNO, JNO, QTY)；哪个供应商向哪个工程供应哪种零件，以及数量
+先确定 S4 的课程集合，再找覆盖该集合的学生，最后排除 S4 本人。
 
-S、P、J 的主码分别是 SNO、PNO、JNO，SPJ 以（SNO，PNO，JNO）为主码，三个编号分别参照对应表，
-QTY 为正数。S 和 J 都有 CITY 列，写连接条件时应指明它属于哪张表。J 中可以有尚未收到任何零件的工程。
-本组只要求根据表结构写表达式，不需要列出具体查询结果。
-
-### 书写 13：给某工程供过货
-
-查询向工程 J1 供应过零件的供应商编号，只输出 SNO。请写关系代数表达式。
-
-### 书写 14：同时限制工程与零件
-
-查询向工程 J1 供应过零件 P1 的供应商编号，只输出 SNO。请写关系代数表达式。
-
-### 书写 15：连接零件表查询颜色
-
-查询向工程 J1 供应过红色零件的供应商编号，只输出 SNO。请写关系代数表达式。
-
-### 书写 16：排除不符合要求的工程
-
-查询从未收到过“天津供应商供应的红色零件”的工程，只输出 JNO。其他城市供应的红色零件不影响条件，天津供应商供应的非红色零件也不影响条件。
-请使用差运算，并保留完全没有供货记录的工程。
-
-### 书写 17：工程用齐指定供应商供应过的零件
-
-查询至少使用了供应商 S1 供应过的全部零件种类的工程，只输出 JNO。S1 供应过的零件种类按其所有 SPJ 记录确定；
-工程使用这些零件时，不要求也由 S1 供货，允许额外使用其他零件。请使用除运算，并假设 S1 至少供应过一种零件。
-
-## 公共表：教师、系与工作（书写 18～20）
-
-参考书第 24～27 页（PDF 第 39～42 页）的教师工资、重命名和外连接题型，使用 Teacher(Tno, Tname, Tage, Tsex)、Department(Dno, Dname, DTno)、Work(Tno, Dno, Year, Salary)。
-DTno 表示系主任的教师号，可以为空；Work 保存当前工作记录，每名教师最多一条，Tno 为其主码。系可以没有教师，
-教师也可以暂时没有 Work 记录。
-
-### 书写 18：重命名与自连接：高于一组人的所有工资
-
-查询工资严格高于 D1 系每位教师工资的教师，只输出 Tno。只比较有 Work 记录的教师，工资均非空，D1 系至少有一条 Work 记录。
-请使用关系代数表达式，可以把 Work 重命名为两个副本，不使用聚集函数 MAX。
-
-### 书写 19：左外连接：保留全部教师
-
-查询所有教师的姓名和所在系名称，显示 Tno、Tname、Dname。没有 Work 记录的教师也要出现，系名称显示 NULL。
-请使用左外连接写关系代数表达式。
-
-### 书写 20：右外连接：保留全部系
-
-查询所有系及其教师，显示 Dno、Dname、Tname。没有教师的系也要出现，教师姓名显示 NULL。请使用右外连接写关系代数表达式；
-教师可以暂时没有 Work 记录，但每条 Work 都参照存在的教师和系。
-
-## 关系代数书写题：用基本运算改写
-
-参考书第 22～23 页（PDF 第 37～38 页）习题 8。
-
-### 书写 21：用基本运算表示连接
-
-关系 R(A, B) 和 T(C, D) 中，B、C 来自相同的数值域。请分别写出条件 B=C、B<C 的连接表达式，
-再将它们改写成只使用笛卡尔积和选择的表达式。
-
-### 书写 22：用基本运算表示交
-
-关系 R(A, B) 和 S(A, B) 的对应列来自同一域。请只使用差运算写出与 R∩S 等价的表达式。
-
-### 书写 23：用基本运算表示除（提高）
+### 关系代数 12：用基本运算表示除（提高）（原书写23）
 
 关系 R(X, Y) 和 S(Y) 中，X、Y 各表示一个属性，Y 的域相同，S 非空。请把 R÷S 改写成只使用投影、笛卡尔积和差的表达式。
 允许给中间结果起名字，再按步骤组合。
 
-## SQL 对照题
+答案：
 
-### SQL 1：投影与 SELECT DISTINCT
+```text
+A = π_X(R)
+B = (A × S) − R
+结果 = A − π_X(B)
+```
 
-使用学生公共表，写 SQL 查询所有出现过的专业，每个专业只显示一次。再写查询姓名、专业两列且结果不重复的 SQL；
-解释为什么普通 SELECT Smajor 与关系代数投影的结果行数可能不同。
+B 找出缺少的 (X,Y) 配对，再排除至少缺少一个目标 Y 的 X。
 
-### SQL 2：差运算与“不存在”
+## 重命名与自连接
 
-使用学生公共表，写 SQL 查询没有选修 C1 的学生，显示 Sno、Sname，并包括没有任何选课记录的学生。
-可以使用 NOT EXISTS、LEFT JOIN 或 EXCEPT，任选一种；结果按 Sno 升序排列。
+思路：把 Work 分成两个副本，先找出存在反例的教师，再从候选教师中排除。
 
-### SQL 3：SPJ 中排除工程
+### 关系代数 13：重命名与自连接：高于一组人的所有工资（原书写18）
 
-使用 SPJ 公共表，写 SQL 查询从未收到过“天津供应商供应的红色零件”的工程，显示 JNO、JNAME，
-保留没有任何供货记录的工程，按 JNO 升序排列。要求天津和红色两个条件对应同一条供货记录。
+查询工资严格高于 D1 系每位教师工资的教师，只输出 Tno。只比较有 Work 记录的教师，工资均非空，D1 系至少有一条 Work 记录。
+请使用关系代数表达式，可以把 Work 重命名为两个副本，不使用聚集函数 MAX。
 
-## 手算题
+答案：
 
-### 手算 1：投影后为什么行数减少
+```text
+W1 = ρ_{W1}(Work)
+W2 = ρ_{W2}(Work)
+Bad = π_{W1.Tno}(σ_{W2.Dno='D1' ∧ W1.Salary<=W2.Salary}(W1 × W2))
+结果 = π_{Tno}(Work) − Bad
+```
 
-关系 R(A, B, C) 的元组为（a1，b1，c1）、（a2，b1，c1）、（a3，b2，c2）。请分别列出 π_B(R)、π_{B,C}(R)、π_{A,B}(R) 的结果，
-写出各自的行数与列数；再判断 σ_{A='a1'}(π_B(R)) 是否有定义，并说明原因。
+Bad 的单列属性重命名为 Tno 后再做差；它表示至少被 D1 某人工资追平或超过的教师。
 
-### 手算 2：并、差、交与笛卡尔积
+## 左外连接与右外连接
 
-关系 R(X, Y) 为 {(1,a),(2,b)}，S(X, Y) 为 {(2,b),(3,c)}。请列出 R∪S、R−S、R∩S 和 R×S 的结果。
-笛卡尔积结果的列用 R.X、R.Y、S.X、S.Y 区分。
+思路：先确定必须保留哪一侧；未匹配的一侧补 NULL，最后投影题目要求的列。
 
-### 手算 3：等值连接、自然连接与悬浮元组
+### 关系代数 14：左外连接：保留全部教师（原书写19）
 
-关系 R(A, B) 为 {(1,x),(2,x),(3,z)}，S(B, C) 为 {(x,10),(y,20)}。
-请列出按 R.B=S.B 进行等值连接和自然连接的结果，比较两者列数；指出两侧哪些是悬浮元组，再列出自然左外连接和自然右外连接的结果，
-未匹配部分填 NULL。
+查询所有教师的姓名和所在系名称，显示 Tno、Tname、Dname。没有 Work 记录的教师也要出现，系名称显示 NULL。
+请使用左外连接写关系代数表达式。
 
-### 手算 4：象集与除运算
+答案：
 
-关系 R(X, Y) 为 {(a,p1),(a,p2),(a,p3),(b,p1),(c,p1),(c,p2)}，
-S(Y) 为 {p1,p2}。请写出 a、b、c 在 R 中的 Y 象集，求 R÷S，并解释一个 X 值多对应了 p3 是否影响它满足条件。
+```text
+π_{Teacher.Tno,Tname,Dname}(
+  (Teacher ⟕_{Teacher.Tno=Work.Tno} Work)
+  ⟕_{Work.Dno=Department.Dno} Department
+)
+```
 
-### 手算 5：结果的行数与列数
+连续左外连接，保留每名教师；没有工作记录时系名称为 NULL。
 
-非空关系 R(A,B,C,D) 有 m 行，S(A,B,C,D) 有 n 行，两者对应列的域相同；另有 T(C,D,E,F) 有 k 行，
-其中 m、n、k 都大于 0。请分别给出 R∪S、R−S、π_{A,B}(R)、σ_{A=10}(R)、R×T、R⋈T 的结果列数，
-以及每个结果行数的最小值和最大值。A 所在的域允许取值 10，关系无额外的码或取值范围约束。
+### 关系代数 15：右外连接：保留全部系（原书写20）
 
-## 基础题
+查询所有系及其教师，显示 Dno、Dname、Tname。没有教师的系也要出现，教师姓名显示 NULL。请使用右外连接写关系代数表达式；
+教师可以暂时没有 Work 记录，但每条 Work 都参照存在的教师和系。
 
-### 基础 1：关系模型与关系语言
+答案：
 
-填空：关系模型由________、________、________三个部分组成；关系代数运算的输入和输出都是________。
-关系数据语言按课件可分为关系代数语言、________语言和 SQL。
+```text
+π_{Department.Dno,Dname,Tname}(
+  (Teacher ⋈_{Teacher.Tno=Work.Tno} Work)
+  ⟖_{Work.Dno=Department.Dno} Department
+)
+```
 
-### 基础 2：关系与关系模式
+Department 在右边，右外连接保留全部系；没有教师的系，教师姓名为 NULL。
 
-判断并说明理由：① Student(Sno,Sname) 是对表结构的描述，属于关系模式；② 某时刻 Student 中全部元组组成一个关系；
-③ 调换关系中各行的顺序会得到不同的关系；④ 一个关系中，同一属性的不同值可以来自不同的域；⑤ 关系的每个分量必须是不可再分的数据项。
+# 三、触发器与存储过程典型练习（10 道，暂不附答案）
 
-### 基础 3：候选码与主属性
+本组使用 PostgreSQL。每题独立，所用表均为练习表，不修改前面的 TPC-H 数据。
+触发器题需写出触发器函数和 CREATE TRIGGER；存储过程题需写出 CREATE PROCEDURE，
+并给出一条 CALL 调用语句。以下表结构已给定，无需另写建表语句。
 
-某关系 R(A,B,C,D) 的候选码恰好是 {A,B} 和 {C}，选 {A,B} 为主码。请指出主属性、非主属性，
-并判断 {A,B,C} 是否也是候选码，说明理由；不要求推导函数依赖或范式。
+## 触发器（5 道）
 
-### 基础 4：完整性与自参照
+### 触发器 1：插入、更新前自动修正工资
 
-Student 的主码为 Sno；SC 的主码为（Sno,Cno），其中 Sno、Cno 分别参照 Student 和 Course；
-Course 的 Cpno 参照同表的 Cno。请指出这些外码对应的参照关系与被参照关系，判断 SC.Cno 是否可以取 NULL，
-以及只存在一张 Course 表时是否仍可能有参照完整性约束。
+已知教师表 Teacher(Tno, Tname, Job, Salary)，字段分别表示教师号、姓名、职称和工资，
+Tno 为主键，Job、Salary 均非空。编写 BEFORE INSERT OR UPDATE 行级触发器，
+当新记录的职称 Job 为“教授”且工资 Salary 小于 4000 时，将新工资改为 4000，
+其他情况保留输入值。请直接修改 NEW 中的工资，不在触发器中再次更新 Teacher 表。
 
-### 基础 5：投影与选择的区别
+### 触发器 2：成绩修改日志
 
-单选：关系代数中的投影是（    ）。A. 按条件取出若干行；B. 取出若干属性列并按集合语义去重；C. 按指定列排序；
-D. 只删除重复属性名，不删除重复元组。
+已知选课表 SC(Sno, Cno, Grade)，以 (Sno, Cno) 为主键，Grade 允许为 NULL；
+日志表 GradeLog(Sno, Cno, OldGrade, NewGrade, ChangedAt) 分别保存学号、课程号、
+旧成绩、新成绩和修改时间。编写 AFTER UPDATE 行级触发器，仅当 Grade 的值实际变化时
+向 GradeLog 插入一条日志；NULL 改为具体分数或具体分数改为 NULL 也算变化，
+NULL 改为 NULL 不记日志，ChangedAt 使用当前时间。
 
-### 基础 6：五种基本运算
+### 触发器 3：删除前保留旧记录
 
-填空：课件的五种基本关系代数运算是________、________、________、________和________。
-并、差、交要求两个关系的属性数________，对应属性来自________；自然连接要求所有________属性的值相等，
-并在结果中去掉重复的________。
+已知选课表 SC(Sno, Cno, Grade)，以 (Sno, Cno) 为主键；
+归档表 SCArchive(Sno, Cno, Grade, DeletedAt) 用来保存被删除的选课记录，允许重复归档。
+编写 DELETE 行级触发器，每删除一条 SC 记录，就将其学号、课程号、成绩和当前时间
+保存到 SCArchive。请自行选择触发时机，并使用被删除行中的字段值。
+
+### 触发器 4：自动维护课程选课人数
+
+已知课程表 Course(Cno, Cname, SelectedCount) 和选课表 SC(Sno, Cno, Grade)，
+Course 的主键为 Cno，SC 的主键为 (Sno, Cno)，SC.Cno 是参照 Course.Cno 的外码。
+SelectedCount 非空，初值与已有选课记录一致。本题只允许向 SC 插入或删除记录，
+不允许修改 SC.Cno，也不直接修改 SelectedCount。编写行级触发器，使插入一条选课记录后
+对应课程人数加 1，删除一条选课记录后人数减 1；一条语句处理多条记录时也应正确维护人数。
+
+### 触发器 5：语句级操作日志
+
+已知员工表 Employee(Eid, Salary)，Eid 为主键；日志表 SalaryStatementLog(LogTime)
+保存工资更新语句的执行时间。编写 AFTER UPDATE FOR EACH STATEMENT 触发器，
+每条成功执行的 UPDATE 语句只向日志表插入一行。再分别说明一条 UPDATE 匹配 4 行和
+匹配 0 行时会新增几条日志，以及若改为 FOR EACH ROW 时这两种情况各新增几条日志。
+本题触发器不设置 WHEN 条件。
+
+## 存储过程（5 道）
+
+### 存储过程 1：输入、输出参数与条件分支
+
+编写存储过程 classify_grade，输入参数 p_grade 为整数，输出参数 p_result 为文本。
+当 p_grade 为 NULL 时返回“未录入”，不在 0～100 范围内时返回“成绩非法”，
+90～100 返回“优秀”，60～89 返回“及格”，0～59 返回“不及格”。
+使用 IF 分支给输出参数赋值，并写出传入 85 时的 CALL 调用语句。
+
+### 存储过程 2：按部门批量调薪
+
+已知员工表 Employee(Eid, Ename, Deptno, Salary)，Eid 为主键，Deptno、Salary 均非空，
+Salary 为非负数。编写存储过程 raise_salary，输入部门号 p_deptno 和加薪比例 p_rate，
+输出实际更新人数 p_count。将指定部门每名员工的 Salary 更新为原工资乘以 (1 + p_rate)，
+p_rate 为 NULL 或不在 0～0.5 范围内时抛出异常；部门没有员工时 p_count 返回 0。
+使用一条 UPDATE 完成调薪，并让 p_count 取该语句实际影响的行数。
+
+### 存储过程 3：聚集查询与无记录处理
+
+已知选课表 SC(Sno, Cno, Grade)，以 (Sno, Cno) 为主键，Grade 允许为 NULL。
+编写存储过程 student_summary，输入学号 p_sno，输出已选课程数 p_total、
+有成绩的课程数 p_graded 和平均成绩 p_avg。已选课程数包含 Grade 为 NULL 的记录，
+平均成绩只计算非 NULL 成绩；没有选课记录时两个计数返回 0，平均成绩返回 NULL，
+有选课但所有成绩均为 NULL 时，有成绩的课程数返回 0，平均成绩也返回 NULL。
+
+### 存储过程 4：循环、判断与批量插入
+
+已知整数表 NumberResult(N, Kind)，N 为主键，Kind 保存“奇数”或“偶数”。
+编写存储过程 fill_numbers，输入整数 p_n；当 p_n 为 NULL 或小于 1 时抛出异常，
+否则先清空 NumberResult，再用循环依次插入 1 到 p_n，每行 Kind 根据 N 的奇偶性填写。
+本题要求使用循环和条件分支，不使用 generate_series；调用成功后表中应恰好有 p_n 行。
+
+### 存储过程 5：转账与异常处理（提高）
+
+已知账户表 Account(Aid, Balance)，Aid 为主键，Balance 为非空、非负数。
+编写存储过程 transfer_money，输入转出账户 p_from、转入账户 p_to 和金额 p_amount，
+当任一参数为 NULL、两个账户相同、金额不大于 0、任一账户不存在或余额不足时抛出异常。
+检查通过后，从转出账户扣款并向转入账户增加相同金额。两次更新必须处于同一事务中，
+过程内部不执行 COMMIT，也不捕获并吞掉异常，保证失败时本次转账的修改全部撤销。
+本题不考虑并发转账；写出在显式事务中从账户 1 向账户 2 转账 100 的调用语句。
